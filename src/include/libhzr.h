@@ -27,21 +27,39 @@ size_t hzr_max_compressed_size(size_t uncompressed_size);
 * @param in Input (uncompressed) buffer.
 * @param in_size Size of the input buffer in bytes.
 * @param[out] out Output (compressed) buffer.
-* @param[out] out_size Size of the output buffer in bytes.
+* @param out_size Size of the output buffer in bytes.
+* @param[out] encoded_size Size of the encoded data in bytes.
 * @returns HZR_OK on success, else HZR_FAIL.
 */
 hzr_status_t hzr_encode(const void* in,
                         size_t in_size,
                         void* out,
-                        size_t out_size);
+                        size_t out_size,
+                        size_t* encoded_size);
+
+/**
+* @brief Verify that a buffer is a valid HZR encoded buffer.
+* @param in Input (compressed) buffer.
+* @param in_size Size of the input buffer in bytes.
+* @param[out] decoded_size Size of the decoded data in bytes.
+* @returns HZR_OK on success, else HZR_FAIL.
+*
+* If the provided buffer is a valid HZR encoded buffer, the size of the decoded
+* buffer is returned in decoded_size.
+*/
+hzr_status_t hzr_verify(const void* in,
+                        size_t in_size,
+                        size_t* decoded_size);
 
 /**
 * @brief Decode an HZR encoded buffer.
 * @param in Input (compressed) buffer.
 * @param in_size Size of the input buffer in bytes.
 * @param[out] out Output (uncompressed) buffer.
-* @param[out] out_size Size of the output buffer in bytes.
+* @param out_size Size of the output buffer in bytes.
 * @returns HZR_OK on success, else HZR_FAIL.
+* @note It is expected that the input buffer is a valid HZR encoded buffer,
+* which should be verified by calling hzr_verify() first.
 */
 hzr_status_t hzr_decode(const void* in,
                         size_t in_size,
