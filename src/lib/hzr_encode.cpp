@@ -78,7 +78,8 @@ class WriteStream {
 
 // Used by the encoder for building the optimal Huffman tree.
 struct SymbolInfo {
-  Symbol symbol;
+  Symbol symbol;  // TODO(m): Is this needed?!
+                  // All SymbolInfos seem to be indexed by the symbol no.
   int count;
   uint32_t code;
   int bits;
@@ -272,6 +273,7 @@ extern "C" hzr_status_t hzr_encode(const void* in,
 
   // Sort symbols - first symbol first (bubble sort).
   // TODO(m): Quick-sort.
+  // TODO(m): IS THIS NEEDED?! symbols[] is already sorted by symbols?
   bool swaps;
   do {
     swaps = false;
