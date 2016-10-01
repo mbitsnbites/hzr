@@ -15,6 +15,21 @@
 #define UNLIKELY(expr) (expr)
 #endif
 
+// Debug macros.
+#if !defined(NDEBUG)
+#include <stdio.h>
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901)) || \
+    (defined(__cplusplus) && (__cplusplus >= 201103))
+#define DLOG(s, ...) \
+  printf("%s:%d: %s\n", __func__, __LINE__, (s), ##__VA_ARGS__)
+#else
+#define DLOG(s, ...) \
+  printf("%s:%d: %s\n", __FILE__, __LINE__, (s), ##__VA_ARGS__)
+#endif
+#else
+#define DLOG(s, ...)
+#endif
+
 // Encoded data header size (in bytes).
 // The header format is:
 //  0: size of the decoded data (32 bits).

@@ -296,6 +296,7 @@ extern "C" hzr_status_t hzr_verify(const void* in,
                                    size_t* decoded_size) {
   // Check input parameters.
   if (!in || !decoded_size) {
+    DLOG("Invalid input arguments.");
     return HZR_FAIL;
   }
 
@@ -304,6 +305,7 @@ extern "C" hzr_status_t hzr_verify(const void* in,
   *decoded_size = static_cast<size_t>(stream.ReadBitsChecked(32));
   uint32_t expected_crc32 = stream.ReadBitsChecked(32);
   if (stream.read_failed()) {
+    DLOG("Could not read the header.");
     return HZR_FAIL;
   }
 
@@ -311,6 +313,7 @@ extern "C" hzr_status_t hzr_verify(const void* in,
   uint32_t actual_crc32 =
       _hzr_crc32(stream.byte_ptr(), in_size - HZR_HEADER_SIZE);
   if (actual_crc32 != expected_crc32) {
+    DLOG("CRC32 check failed.");
     return HZR_FAIL;
   }
 
@@ -323,6 +326,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
                                    size_t out_size) {
   // Check input parameters.
   if (!in || !out) {
+    DLOG("Invalid input arguments.");
     return HZR_FAIL;
   }
 
@@ -335,6 +339,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   hzr::ReadStream stream(in, in_size);
   stream.AdvanceBytesChecked(HZR_HEADER_SIZE);
   if (stream.read_failed()) {
+    DLOG("Unable to skip past the header.");
     return HZR_FAIL;
   }
 
@@ -343,6 +348,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   int node_count = 0;
   hzr::DecodeNode* tree_root = tree.Recover(&node_count, 0, 0, stream);
   if (tree_root == nullptr) {
+    DLOG("Unable to decode the Huffman tree.");
     return HZR_FAIL;
   }
 
@@ -416,6 +422,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
       }
 
       if (UNLIKELY(out_ptr + zero_count > out_end)) {
+        DLOG("Output buffer full.");
         return HZR_FAIL;
       }
       std::fill(out_ptr, out_ptr + zero_count, 0);
@@ -436,6 +443,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
       }
 
       if (UNLIKELY(stream.read_failed())) {
+        DLOG("Input buffer ended prematurely.");
         return HZR_FAIL;
       }
     }
@@ -476,6 +484,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
       }
 
       if (UNLIKELY(stream.read_failed() || out_ptr + zero_count > out_end)) {
+        DLOG("Output buffer full.");
         return HZR_FAIL;
       }
       std::fill(out_ptr, out_ptr + zero_count, 0);
@@ -484,5 +493,10 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   }
 
   // TODO: Better check!
-  return stream.AtTheEnd() ? HZR_OK : HZR_FAIL;
+  if (UNLIKELY(!stream.AtTheEnd())) {
+    DLOG("Decoder did not reach the end of the input buffer.");
+    return HZR_FAIL;
+  }
+
+  return HZR_OK;
 }
