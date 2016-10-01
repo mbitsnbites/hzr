@@ -67,7 +67,8 @@ int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
   return 1;
 }
 
-void test_data(const char* name, const unsigned char *uncompressed, size_t uncompressed_size) {
+void test_data(const char *name, const unsigned char *uncompressed,
+               size_t uncompressed_size) {
   printf("TEST: %s\n", name);
   if (perform_test(uncompressed, uncompressed_size)) {
     printf("SUCCESSFUL!\n");
@@ -75,7 +76,6 @@ void test_data(const char* name, const unsigned char *uncompressed, size_t uncom
     printf("***FAILED***\n");
   }
 }
-
 
 void test_data_1(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 0, uncompressed_size);
