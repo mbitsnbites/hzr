@@ -17,17 +17,22 @@
 
 // Debug macros.
 #if !defined(NDEBUG)
-#include <stdio.h>
-#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901)) || \
-    (defined(__cplusplus) && (__cplusplus >= 201103))
-#define DLOG(s, ...) \
-  printf("%s:%d: %s\n", __func__, __LINE__, (s), ##__VA_ARGS__)
+#if defined(_MSC_VER)
+#include <intrin.h>
+#define DEBUG_BREAK() __debugbreak()
 #else
+#include <signal.h>
+#define DEBUG_BREAK() raise(SIGTRAP)
+#endif
+#include <stdio.h>
 #define DLOG(s, ...) \
   printf("%s:%d: %s\n", __FILE__, __LINE__, (s), ##__VA_ARGS__)
-#endif
+#define DBREAK(s, ...) \
+  do { DLOG(s, ##__VA_ARGS__); DEBUG_BREAK(); } while(0)
 #else
+#define DEBUG_BREAK()
 #define DLOG(s, ...)
+#define DBREAK(s, ...)
 #endif
 
 // Encoded data header size (in bytes).
