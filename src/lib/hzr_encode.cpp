@@ -240,8 +240,10 @@ void MakeTree(SymbolInfo* sym, WriteStream* stream) {
 }  // namespace hzr
 
 extern "C" size_t hzr_max_compressed_size(size_t uncompressed_size) {
-  // TODO: Implement me!
-  return uncompressed_size * 2 + kMaxTreeDataSize;
+  // TODO(m): Find out what the ACTUAL limit is. This should be on the safe
+  // side.
+  return uncompressed_size + ((uncompressed_size + 255) >> 8) +
+         kMaxTreeDataSize + HZR_HEADER_SIZE;
 }
 
 extern "C" hzr_status_t hzr_encode(const void* in,
@@ -263,6 +265,7 @@ extern "C" hzr_status_t hzr_encode(const void* in,
 
   // Make room for the header.
   stream.AdvanceBytes(HZR_HEADER_SIZE);
+  const uint8_t* encoded_start = stream.byte_ptr();
 
   // Calculate the histogram for input data.
   hzr::SymbolInfo symbols[kNumSymbols];
@@ -336,7 +339,7 @@ extern "C" hzr_status_t hzr_encode(const void* in,
   *encoded_size = stream.Size();
 
   // Calculate the CRC for the compressed buffer.
-  uint32_t crc32 = _hzr_crc32(out, *encoded_size);
+  uint32_t crc32 = _hzr_crc32(encoded_start, *encoded_size - HZR_HEADER_SIZE);
 
   // Update the header.
   stream.Reset();
