@@ -254,7 +254,7 @@ DecodeNode* DecodeTree::Recover(int* node_num,
       for (uint32_t i = 0; i < dups; ++i) {
         DecodeLutEntry* lut_entry = &decode_lut[(i << bits) | code];
         lut_entry->node = nullptr;
-        lut_entry->bits = bits;
+        lut_entry->bits = std::max(bits, 1); // Special case for single symbol.
         lut_entry->symbol = symbol;
       }
     }
@@ -434,6 +434,13 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   while (out_ptr < out_end) {
     // Traverse the tree until we find a leaf node.
     hzr::DecodeNode* node = tree_root;
+
+    // Special case: Only one symbol in the entire tree -> root node is a leaf
+    // node.
+    if (node->symbol >= 0) {
+      stream.Advance(1);
+    }
+
     while (node->symbol < 0) {
       // Get next node.
       if (stream.ReadBitChecked()) {
