@@ -5,8 +5,6 @@
 #include <libhzr.h>
 
 int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
-  printf("  - Uncompressed size: %ld\n", uncompressed_size);
-
   // Compress the data.
   const size_t max_compressed_size = hzr_max_compressed_size(uncompressed_size);
   printf("  - Max compressed size: %ld\n", max_compressed_size);
@@ -32,9 +30,8 @@ int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
     free(compressed);
     return 0;
   }
-  printf("  - Uncompressed size 2: %ld\n", uncompressed_size2);
   if (uncompressed_size2 != uncompressed_size) {
-    printf("  - ERROR: %ld != %ld\n", uncompressed_size2, uncompressed_size);
+    printf("  - Decoded size mismatch: %ld != %ld\n", uncompressed_size2, uncompressed_size);
     free(compressed);
     return 0;
   }
@@ -67,63 +64,88 @@ int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
   return 1;
 }
 
-void test_data(const char *name, const unsigned char *uncompressed,
+int test_data(const char *name, const unsigned char *uncompressed,
                size_t uncompressed_size) {
-  printf("TEST: %s\n", name);
-  if (perform_test(uncompressed, uncompressed_size)) {
+  printf("TEST: %s (%ld bytes)\n", name, uncompressed_size);
+  int result = perform_test(uncompressed, uncompressed_size);
+  if (result) {
     printf("SUCCESSFUL!\n");
   } else {
     printf("***FAILED***\n");
   }
+  return result;
 }
 
-void test_data_1(unsigned char *uncompressed, size_t uncompressed_size) {
+int test_data_1(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 0, uncompressed_size);
-  test_data("good case (all zeros)", uncompressed, uncompressed_size);
+  return test_data("good case (all zeros)", uncompressed, uncompressed_size);
 }
 
-void test_data_2(unsigned char *uncompressed, size_t uncompressed_size) {
+int test_data_2(unsigned char *uncompressed, size_t uncompressed_size) {
   for (size_t i = 0; i < uncompressed_size; ++i) {
     uncompressed[i] = i & 255;
   }
-  test_data("bad case", uncompressed, uncompressed_size);
+  return test_data("bad case", uncompressed, uncompressed_size);
 }
 
-void test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
+int test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 0, uncompressed_size);
   for (size_t i = uncompressed_size / 2; i < uncompressed_size; ++i) {
     uncompressed[i] = i & 255;
   }
-  test_data("test3", uncompressed, uncompressed_size);
+  return test_data("test3", uncompressed, uncompressed_size);
 }
 
-void test_data_4(unsigned char *uncompressed, size_t uncompressed_size) {
+int test_data_4(unsigned char *uncompressed, size_t uncompressed_size) {
   for (size_t i = 0; i < uncompressed_size; ++i) {
     uncompressed[i] = i & 15;
   }
-  test_data("test4", uncompressed, uncompressed_size);
+  return test_data("test4", uncompressed, uncompressed_size);
 }
 
-void test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {
+int test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 1, uncompressed_size);
-  test_data("all ones", uncompressed, uncompressed_size);
+  return test_data("all ones", uncompressed, uncompressed_size);
 }
 
 int main() {
   // Allocate memory for the uncompressed data.
-  const size_t uncompressed_size = 500000;
-  unsigned char *uncompressed = (unsigned char *)malloc(uncompressed_size);
+  const size_t max_uncompressed_size = 500000;
+  unsigned char *uncompressed = (unsigned char *)malloc(max_uncompressed_size);
   if (!uncompressed) {
     printf("Unable to allocate memory for uncompressed data.\n");
     return 1;
   }
 
+  const size_t sizes[] = {
+    max_uncompressed_size,
+    max_uncompressed_size / 2,
+    max_uncompressed_size / 5,
+    max_uncompressed_size / 10,
+    max_uncompressed_size / 20,
+    max_uncompressed_size / 50,
+    max_uncompressed_size > 100 ? 100 : max_uncompressed_size,
+    max_uncompressed_size > 10 ? 10 : max_uncompressed_size,
+    max_uncompressed_size > 1 ? 1 : max_uncompressed_size,
+    0
+  };
+  const size_t num_sizes = sizeof(sizes) / sizeof(sizes[0]);
+
   // Perform tests.
-  test_data_1(uncompressed, uncompressed_size);
-  test_data_2(uncompressed, uncompressed_size);
-  test_data_3(uncompressed, uncompressed_size);
-  test_data_4(uncompressed, uncompressed_size);
-  test_data_5(uncompressed, uncompressed_size);
+  int success_count = 0, total_count = 0;
+  for (size_t k = 0; k < num_sizes; ++k) {
+    const size_t uncompressed_size = sizes[k];
+    success_count += test_data_1(uncompressed, uncompressed_size);
+    success_count += test_data_2(uncompressed, uncompressed_size);
+    success_count += test_data_3(uncompressed, uncompressed_size);
+    success_count += test_data_4(uncompressed, uncompressed_size);
+    success_count += test_data_5(uncompressed, uncompressed_size);
+    total_count += 5;
+  }
+
+  // Print summary.
+  printf("\n%d tests: %d successful, %d fails\n",
+         total_count, success_count, total_count - success_count);
 
   // Free the uncompressed data.
   free(uncompressed);
