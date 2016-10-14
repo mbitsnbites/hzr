@@ -133,10 +133,6 @@ static bool AtTheEnd(const ReadStream* stream) {
          (stream->byte_ptr == (stream->end_ptr - 1) && stream->bit_pos > 0);
 }
 
-namespace hzr {
-
-namespace {
-
 struct DecodeNode {
   DecodeNode *child_a, *child_b;
   int symbol;
@@ -149,22 +145,18 @@ struct DecodeLutEntry {
 };
 
 struct DecodeTree {
-  DecodeNode* Recover(int* node_num,
-                      uint32_t code,
-                      int bits,
-                      ReadStream* stream);
-
   DecodeNode nodes[kMaxTreeNodes];
   DecodeLutEntry decode_lut[256];
 };
 
 // Recursively recover a Huffman tree from a bitstream.
-DecodeNode* DecodeTree::Recover(int* node_num,
-                                uint32_t code,
-                                int bits,
-                                ReadStream* stream) {
+static DecodeNode* RecoverTree(DecodeTree* tree,
+                               int* node_num,
+                               uint32_t code,
+                               int bits,
+                               ReadStream* stream) {
   // Pick a node from the node array.
-  DecodeNode* this_node = &nodes[*node_num];
+  DecodeNode* this_node = &tree->nodes[*node_num];
   *node_num = *node_num + 1;
   if (UNLIKELY(*node_num) >= kMaxTreeNodes) {
     return nullptr;
@@ -194,7 +186,7 @@ DecodeNode* DecodeTree::Recover(int* node_num,
       // upper bits.
       uint32_t dups = 256 >> bits;
       for (uint32_t i = 0; i < dups; ++i) {
-        DecodeLutEntry* lut_entry = &decode_lut[(i << bits) | code];
+        DecodeLutEntry* lut_entry = &tree->decode_lut[(i << bits) | code];
         lut_entry->node = nullptr;
         lut_entry->bits = std::max(bits, 1);  // Special case for single symbol.
         lut_entry->symbol = symbol;
@@ -208,30 +200,27 @@ DecodeNode* DecodeTree::Recover(int* node_num,
     // This is a branch node with children that have > 8 bits per code. Add a
     // non-terminated entry in the LUT (i.e. one that points into the tree
     // rather than giving a symbol).
-    DecodeLutEntry* lut_entry = &decode_lut[code];
+    DecodeLutEntry* lut_entry = &tree->decode_lut[code];
     lut_entry->node = this_node;
     lut_entry->bits = 8;
     lut_entry->symbol = 0;
   }
 
   // Get branch A.
-  this_node->child_a = Recover(node_num, code, bits + 1, stream);
+  this_node->child_a = RecoverTree(tree, node_num, code, bits + 1, stream);
   if (UNLIKELY(!this_node->child_a)) {
     return nullptr;
   }
 
   // Get branch B.
-  this_node->child_b = Recover(node_num, code + (1 << bits), bits + 1, stream);
+  this_node->child_b =
+      RecoverTree(tree, node_num, code + (1 << bits), bits + 1, stream);
   if (UNLIKELY(!this_node->child_b)) {
     return nullptr;
   }
 
   return this_node;
 }
-
-}  // namespace
-
-}  // namespace hzr
 
 extern "C" hzr_status_t hzr_verify(const void* in,
                                    size_t in_size,
@@ -288,9 +277,9 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   }
 
   // Recover the Huffman tree.
-  hzr::DecodeTree tree;
+  DecodeTree tree;
   int node_count = 0;
-  hzr::DecodeNode* tree_root = tree.Recover(&node_count, 0, 0, &stream);
+  DecodeNode* tree_root = RecoverTree(&tree, &node_count, 0, 0, &stream);
   if (tree_root == nullptr) {
     DBREAK("Unable to decode the Huffman tree.");
     return HZR_FAIL;
@@ -319,7 +308,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
     } else {
       // Slow case: Traverse the tree from 8 bits code length until we find a
       // leaf node.
-      hzr::DecodeNode* node = lut_entry.node;
+      DecodeNode* node = lut_entry.node;
       while (node->symbol < 0) {
         // Get next node.
         if (ReadBit(&stream)) {
@@ -377,7 +366,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   // ...and we do the tail of the decoding in a slower, checked loop.
   while (out_ptr < out_end) {
     // Traverse the tree until we find a leaf node.
-    hzr::DecodeNode* node = tree_root;
+    DecodeNode* node = tree_root;
 
     // Special case: Only one symbol in the entire tree -> root node is a leaf
     // node.
