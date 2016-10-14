@@ -38,6 +38,16 @@
 #define DBREAK(s, ...)
 #endif
 
+// Min/max macros.
+#define hzr_min(x, y) ((x) <= (y) ? (x) : (y))
+#define hzr_max(x, y) ((x) >= (y) ? (x) : (y))
+
+// Types.
+enum hzr_bool {
+  HZR_FALSE = 0,
+  HZR_TRUE = 1
+};
+
 // Encoded data header size (in bytes).
 // The header format is:
 //  0: size of the decoded data (32 bits).

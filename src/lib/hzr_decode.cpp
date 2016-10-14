@@ -1,7 +1,7 @@
 #include "libhzr.h"
 
-#include <algorithm>
-#include <cstdint>
+#include <stdint.h>
+#include <string.h>
 
 #include "hzr_crc32c.h"
 #include "hzr_internal.h"
@@ -11,18 +11,15 @@ struct ReadStream {
   const uint8_t* byte_ptr;
   int bit_pos;
   const uint8_t* end_ptr;
-  bool read_failed;
+  hzr_bool read_failed;
 };
-
-// Check if we have reached the end of the buffer.
-static bool AtTheEnd(const ReadStream* stream);
 
 // Initialize a bitstream.
 static void InitReadStream(ReadStream* stream, const void* buf, int size) {
   stream->byte_ptr = (const uint8_t*)buf;
   stream->bit_pos = 0;
   stream->end_ptr = ((const uint8_t*)buf) + size;
-  stream->read_failed = false;
+  stream->read_failed = HZR_FALSE;
 }
 
 // Read one bit from a bitstream.
@@ -41,7 +38,7 @@ static int ReadBit(ReadStream* stream) {
 static int ReadBitChecked(ReadStream* stream) {
   // Check that we don't read past the end.
   if (UNLIKELY(stream->byte_ptr >= stream->end_ptr)) {
-    stream->read_failed = true;
+    stream->read_failed = HZR_TRUE;
     return 0;
   }
 
@@ -61,7 +58,7 @@ static uint32_t ReadBits(ReadStream* stream, int bits) {
   // TODO(m): Optimize this!
   int shift = 0;
   while (bits) {
-    int bits_to_extract = std::min(bits, 8 - bit);
+    int bits_to_extract = hzr_min(bits, 8 - bit);
     bits -= bits_to_extract;
 
     uint8_t mask = 0xff >> (8 - bits_to_extract);
@@ -89,7 +86,7 @@ static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
   const uint8_t* new_byte_ptr = stream->byte_ptr + (new_bit_pos >> 3);
   if (UNLIKELY(new_byte_ptr > stream->end_ptr ||
                (new_byte_ptr == stream->end_ptr && ((new_bit_pos & 7) != 0)))) {
-    stream->read_failed = true;
+    stream->read_failed = HZR_TRUE;
     return 0;
   }
 
@@ -117,7 +114,7 @@ static void AdvanceBytesChecked(ReadStream* stream, int N) {
   // Check that we don't advance past the end.
   if (UNLIKELY(new_byte_ptr > stream->end_ptr ||
                (new_byte_ptr == stream->end_ptr && (stream->bit_pos != 0)))) {
-    stream->read_failed = true;
+    stream->read_failed = HZR_TRUE;
     return;
   }
 
@@ -126,11 +123,13 @@ static void AdvanceBytesChecked(ReadStream* stream, int N) {
 }
 
 // Check if we have reached the end of the buffer.
-static bool AtTheEnd(const ReadStream* stream) {
+static hzr_bool AtTheEnd(const ReadStream* stream) {
   // This is a rought estimate that we have reached the end of the input
   // buffer (not too short, and not too far).
-  return (stream->byte_ptr == stream->end_ptr && stream->bit_pos == 0) ||
-         (stream->byte_ptr == (stream->end_ptr - 1) && stream->bit_pos > 0);
+  return ((stream->byte_ptr == stream->end_ptr && stream->bit_pos == 0) ||
+          (stream->byte_ptr == (stream->end_ptr - 1) && stream->bit_pos > 0))
+             ? HZR_TRUE
+             : HZR_FALSE;
 }
 
 struct DecodeNode {
@@ -168,11 +167,11 @@ static DecodeNode* RecoverTree(DecodeTree* tree,
   this_node->child_b = nullptr;
 
   // Is this a leaf node?
-  bool is_leaf = ReadBitChecked(stream) != 0;
+  int is_leaf = ReadBitChecked(stream);
   if (UNLIKELY(stream->read_failed)) {
     return nullptr;
   }
-  if (is_leaf) {
+  if (is_leaf != 0) {
     // Get symbol from tree description and store in lead node.
     int symbol = static_cast<int>(ReadBitsChecked(stream, kSymbolSize));
     if (UNLIKELY(stream->read_failed)) {
@@ -188,7 +187,7 @@ static DecodeNode* RecoverTree(DecodeTree* tree,
       for (uint32_t i = 0; i < dups; ++i) {
         DecodeLutEntry* lut_entry = &tree->decode_lut[(i << bits) | code];
         lut_entry->node = nullptr;
-        lut_entry->bits = std::max(bits, 1);  // Special case for single symbol.
+        lut_entry->bits = hzr_max(bits, 1);  // Special case for single symbol.
         lut_entry->symbol = symbol;
       }
     }
@@ -358,7 +357,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
         DBREAK("Output buffer full.");
         return HZR_FAIL;
       }
-      std::fill(out_ptr, out_ptr + zero_count, 0);
+      memset(out_ptr, 0, zero_count);
       out_ptr += zero_count;
     }
   }
@@ -427,7 +426,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
         DBREAK("Output buffer full.");
         return HZR_FAIL;
       }
-      std::fill(out_ptr, out_ptr + zero_count, 0);
+      memset(out_ptr, 0, zero_count);
       out_ptr += zero_count;
     }
   }
