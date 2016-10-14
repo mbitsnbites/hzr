@@ -27,8 +27,11 @@
 #include <stdio.h>
 #define DLOG(s, ...) \
   printf("%s:%d: %s\n", __FILE__, __LINE__, (s), ##__VA_ARGS__)
-#define DBREAK(s, ...) \
-  do { DLOG(s, ##__VA_ARGS__); DEBUG_BREAK(); } while(0)
+#define DBREAK(s, ...)      \
+  do {                      \
+    DLOG(s, ##__VA_ARGS__); \
+    DEBUG_BREAK();          \
+  } while (0)
 #else
 #define DEBUG_BREAK()
 #define DLOG(s, ...)

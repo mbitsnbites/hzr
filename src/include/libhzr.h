@@ -47,9 +47,7 @@ hzr_status_t hzr_encode(const void* in,
 * If the provided buffer is a valid HZR encoded buffer, the size of the decoded
 * buffer is returned in decoded_size.
 */
-hzr_status_t hzr_verify(const void* in,
-                        size_t in_size,
-                        size_t* decoded_size);
+hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size);
 
 /**
 * @brief Decode an HZR encoded buffer.

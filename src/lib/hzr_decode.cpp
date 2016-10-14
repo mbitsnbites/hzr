@@ -254,7 +254,7 @@ DecodeNode* DecodeTree::Recover(int* node_num,
       for (uint32_t i = 0; i < dups; ++i) {
         DecodeLutEntry* lut_entry = &decode_lut[(i << bits) | code];
         lut_entry->node = nullptr;
-        lut_entry->bits = std::max(bits, 1); // Special case for single symbol.
+        lut_entry->bits = std::max(bits, 1);  // Special case for single symbol.
         lut_entry->symbol = symbol;
       }
     }
