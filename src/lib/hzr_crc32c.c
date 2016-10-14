@@ -48,7 +48,7 @@ static const uint32_t crc32_lut[256] = {
     0xbe2da0a5, 0x4c4623a6, 0x5f16d052, 0xad7d5351};
 
 static uint32_t _hzr_crc32c_fallback(const void* data, size_t length) {
-  uint32_t crc = ~0;
+  uint32_t crc = ~0U;
   const uint8_t* current = (const uint8_t*)data;
   while (length--) {
     crc = (crc >> 8) ^ crc32_lut[(crc & 0xff) ^ *current++];
