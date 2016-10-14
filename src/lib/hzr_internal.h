@@ -59,4 +59,10 @@ typedef uint16_t Symbol;
 // The maximum number of nodes in the Huffman tree (branch nodes + leaf nodes).
 #define kMaxTreeNodes ((kNumSymbols * 2) - 1)
 
+// Can we use SSE4.2?
+#if !defined(HZR_USE_SSE4_2) && \
+    (defined(__SSE4_2__) || defined(_M_IX86_FP) && (_M_IX86_FP >= 2))
+#define HZR_USE_SSE4_2
+#endif
+
 #endif  // HZR_INTERNAL_H_

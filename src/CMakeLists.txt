@@ -17,20 +17,21 @@ elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
   set(CMAKE_CPP_FLAGS "${CMAKE_C_FLAGS} /WX")
 endif()
 
-# Enable SSE4.2 (for the faster CRC32C routine).
-# TODO(m): Make a proper test for this (target is x86 and GNU/?). Also, possibly
-# only enable for a specific source file.
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
-endif()
-
 set(lib_includes
     include/libhzr.h)
 
 set(lib_sources
-    lib/hzr_crc32.c
+    lib/hzr_crc32c.c
+    lib/hzr_crc32c_sse4.c
     lib/hzr_decode.cpp
     lib/hzr_encode.cpp)
+
+# Enable SSE4.2 (for the faster CRC32C routine).
+# TODO(m): Make a proper test for this (target is x86 with SSE4.2 and compiler
+# is GNU/?).
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+  set_source_files_properties(lib/hzr_crc32c_sse4.c PROPERTIES COMPILE_FLAGS "-msse4.2")
+endif()
 
 add_library(hzr ${lib_sources} ${lib_includes})
 

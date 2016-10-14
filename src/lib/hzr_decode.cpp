@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 
-#include "hzr_crc32.h"
+#include "hzr_crc32c.h"
 #include "hzr_internal.h"
 
 namespace hzr {
