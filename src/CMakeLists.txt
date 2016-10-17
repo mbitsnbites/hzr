@@ -23,7 +23,7 @@ set(lib_includes
 set(lib_sources
     lib/hzr_crc32c.c
     lib/hzr_crc32c_sse4.c
-    lib/hzr_decode.cpp
+    lib/hzr_decode.c
     lib/hzr_encode.cpp)
 
 # Enable SSE4.2 (for the faster CRC32C routine).
