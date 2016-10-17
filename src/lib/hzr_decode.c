@@ -7,12 +7,12 @@
 #include "hzr_internal.h"
 
 // A helper for decoding binary data.
-struct ReadStream {
+typedef struct {
   const uint8_t* byte_ptr;
   int bit_pos;
   const uint8_t* end_ptr;
   hzr_bool read_failed;
-};
+} ReadStream;
 
 // Initialize a bitstream.
 static void InitReadStream(ReadStream* stream, const void* buf, int size) {
@@ -62,7 +62,7 @@ static uint32_t ReadBits(ReadStream* stream, int bits) {
     bits -= bits_to_extract;
 
     uint8_t mask = 0xff >> (8 - bits_to_extract);
-    x = x | (static_cast<uint32_t>((*buf >> bit) & mask) << shift);
+    x = x | (((uint32_t)((*buf >> bit) & mask)) << shift);
     shift += bits_to_extract;
 
     bit += bits_to_extract;
@@ -97,7 +97,7 @@ static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
 // Peek eight bits from a bitstream (read without advancing the pointer).
 static uint8_t Peek8Bits(const ReadStream* stream) {
   uint8_t lo = stream->byte_ptr[0], hi = stream->byte_ptr[1];
-  return ((hi << 8) | lo) >> stream->bit_pos;
+  return (uint8_t)(((hi << 8) | lo) >> stream->bit_pos);
 }
 
 // Advance the pointer by N bits.
@@ -132,21 +132,22 @@ static hzr_bool AtTheEnd(const ReadStream* stream) {
              : HZR_FALSE;
 }
 
-struct DecodeNode {
+typedef struct DecodeNode_struct DecodeNode;
+struct DecodeNode_struct {
   DecodeNode *child_a, *child_b;
   int symbol;
 };
 
-struct DecodeLutEntry {
+typedef struct {
   DecodeNode* node;
   int symbol;
   int bits;
-};
+} DecodeLutEntry;
 
-struct DecodeTree {
+typedef struct {
   DecodeNode nodes[kMaxTreeNodes];
   DecodeLutEntry decode_lut[256];
-};
+} DecodeTree;
 
 // Recursively recover a Huffman tree from a bitstream.
 static DecodeNode* RecoverTree(DecodeTree* tree,
@@ -158,24 +159,24 @@ static DecodeNode* RecoverTree(DecodeTree* tree,
   DecodeNode* this_node = &tree->nodes[*node_num];
   *node_num = *node_num + 1;
   if (UNLIKELY(*node_num) >= kMaxTreeNodes) {
-    return nullptr;
+    return NULL;
   }
 
   // Clear the node.
   this_node->symbol = -1;
-  this_node->child_a = nullptr;
-  this_node->child_b = nullptr;
+  this_node->child_a = NULL;
+  this_node->child_b = NULL;
 
   // Is this a leaf node?
   int is_leaf = ReadBitChecked(stream);
   if (UNLIKELY(stream->read_failed)) {
-    return nullptr;
+    return NULL;
   }
   if (is_leaf != 0) {
     // Get symbol from tree description and store in lead node.
-    int symbol = static_cast<int>(ReadBitsChecked(stream, kSymbolSize));
+    int symbol = (int)(ReadBitsChecked(stream, kSymbolSize));
     if (UNLIKELY(stream->read_failed)) {
-      return nullptr;
+      return NULL;
     }
 
     this_node->symbol = symbol;
@@ -186,7 +187,7 @@ static DecodeNode* RecoverTree(DecodeTree* tree,
       uint32_t dups = 256 >> bits;
       for (uint32_t i = 0; i < dups; ++i) {
         DecodeLutEntry* lut_entry = &tree->decode_lut[(i << bits) | code];
-        lut_entry->node = nullptr;
+        lut_entry->node = NULL;
         lut_entry->bits = hzr_max(bits, 1);  // Special case for single symbol.
         lut_entry->symbol = symbol;
       }
@@ -208,22 +209,20 @@ static DecodeNode* RecoverTree(DecodeTree* tree,
   // Get branch A.
   this_node->child_a = RecoverTree(tree, node_num, code, bits + 1, stream);
   if (UNLIKELY(!this_node->child_a)) {
-    return nullptr;
+    return NULL;
   }
 
   // Get branch B.
   this_node->child_b =
       RecoverTree(tree, node_num, code + (1 << bits), bits + 1, stream);
   if (UNLIKELY(!this_node->child_b)) {
-    return nullptr;
+    return NULL;
   }
 
   return this_node;
 }
 
-extern "C" hzr_status_t hzr_verify(const void* in,
-                                   size_t in_size,
-                                   size_t* decoded_size) {
+hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
   // Check input parameters.
   if (!in || !decoded_size) {
     DBREAK("Invalid input arguments.");
@@ -232,8 +231,8 @@ extern "C" hzr_status_t hzr_verify(const void* in,
 
   // Parse the header.
   ReadStream stream;
-  InitReadStream(&stream, in, in_size);
-  *decoded_size = static_cast<size_t>(ReadBitsChecked(&stream, 32));
+  InitReadStream(&stream, in, (int)in_size);  // TODO(m): Preserve precision.
+  *decoded_size = (size_t)ReadBitsChecked(&stream, 32);
   uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
   if (stream.read_failed) {
     DBREAK("Could not read the header.");
@@ -251,10 +250,10 @@ extern "C" hzr_status_t hzr_verify(const void* in,
   return HZR_OK;
 }
 
-extern "C" hzr_status_t hzr_decode(const void* in,
-                                   size_t in_size,
-                                   void* out,
-                                   size_t out_size) {
+hzr_status_t hzr_decode(const void* in,
+                        size_t in_size,
+                        void* out,
+                        size_t out_size) {
   // Check input parameters.
   if (!in || !out) {
     DBREAK("Invalid input arguments.");
@@ -268,7 +267,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
 
   // Skip the header.
   ReadStream stream;
-  InitReadStream(&stream, in, in_size);
+  InitReadStream(&stream, in, (int)in_size);  // TODO(m): Preserve precision.
   AdvanceBytesChecked(&stream, HZR_HEADER_SIZE);
   if (stream.read_failed) {
     DBREAK("Unable to skip past the header.");
@@ -279,17 +278,17 @@ extern "C" hzr_status_t hzr_decode(const void* in,
   DecodeTree tree;
   int node_count = 0;
   DecodeNode* tree_root = RecoverTree(&tree, &node_count, 0, 0, &stream);
-  if (tree_root == nullptr) {
+  if (tree_root == NULL) {
     DBREAK("Unable to decode the Huffman tree.");
     return HZR_FAIL;
   }
 
   // Decode input stream.
-  uint8_t* out_ptr = reinterpret_cast<uint8_t*>(out);
+  uint8_t* out_ptr = (uint8_t*)out;
   const uint8_t* out_end = out_ptr + out_size;
 
   // We do the majority of the decoding in a fast, unchecked loop.
-  // Note: The longest supported code + RLE encoding is 32 + 14 bits ~= 6 bytes.
+  // Note: The longest supported code + RLE encoding is 32 + 14 bits < 6 bytes.
   // TODO: THIS IS WRONG! WE NEED TO CHECK THE INPUT BUFFER, NOT THE OUTPUT
   // BUFFER!
   const uint8_t* out_fast_end = out_end - 6;
@@ -299,15 +298,15 @@ extern "C" hzr_status_t hzr_decode(const void* in,
     // Peek 8 bits from the stream and use it to look up a potential symbol in
     // the LUT (codes that are eight bits or shorter are very common, so we have
     // a high hit rate in the LUT).
-    const auto& lut_entry = tree.decode_lut[Peek8Bits(&stream)];
-    Advance(&stream, lut_entry.bits);
-    if (LIKELY(lut_entry.node == nullptr)) {
+    const DecodeLutEntry* lut_entry = &tree.decode_lut[Peek8Bits(&stream)];
+    Advance(&stream, lut_entry->bits);
+    if (LIKELY(lut_entry->node == NULL)) {
       // Fast case: We found the symbol in the LUT.
-      symbol = lut_entry.symbol;
+      symbol = lut_entry->symbol;
     } else {
       // Slow case: Traverse the tree from 8 bits code length until we find a
       // leaf node.
-      DecodeNode* node = lut_entry.node;
+      DecodeNode* node = lut_entry->node;
       while (node->symbol < 0) {
         // Get next node.
         if (ReadBit(&stream)) {
@@ -322,7 +321,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
     // Decode as RLE or plain copy.
     if (LIKELY(symbol <= 255)) {
       // Plain copy.
-      *out_ptr++ = static_cast<uint8_t>(symbol);
+      *out_ptr++ = (uint8_t)symbol;
     } else {
       // Symbols >= 256 are RLE tokens.
       int zero_count;
@@ -332,19 +331,19 @@ extern "C" hzr_status_t hzr_decode(const void* in,
           break;
         }
         case kSymUpTo6Zeros: {
-          zero_count = static_cast<int>(ReadBits(&stream, 2)) + 3;
+          zero_count = ((int)ReadBits(&stream, 2)) + 3;
           break;
         }
         case kSymUpTo22Zeros: {
-          zero_count = static_cast<int>(ReadBits(&stream, 4)) + 7;
+          zero_count = ((int)ReadBits(&stream, 4)) + 7;
           break;
         }
         case kSymUpTo278Zeros: {
-          zero_count = static_cast<int>(ReadBits(&stream, 8)) + 23;
+          zero_count = ((int)ReadBits(&stream, 8)) + 23;
           break;
         }
         case kSymUpTo16662Zeros: {
-          zero_count = static_cast<int>(ReadBits(&stream, 14)) + 279;
+          zero_count = ((int)ReadBits(&stream, 14)) + 279;
           break;
         }
         default: {
@@ -357,7 +356,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
         DBREAK("Output buffer full.");
         return HZR_FAIL;
       }
-      memset(out_ptr, 0, zero_count);
+      memset(out_ptr, 0, (size_t)zero_count);
       out_ptr += zero_count;
     }
   }
@@ -391,7 +390,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
     // Decode as RLE or plain copy.
     if (LIKELY(symbol <= 255)) {
       // Plain copy.
-      *out_ptr++ = static_cast<uint8_t>(symbol);
+      *out_ptr++ = (uint8_t)symbol;
     } else {
       // Symbols >= 256 are RLE tokens.
       int zero_count;
@@ -401,19 +400,19 @@ extern "C" hzr_status_t hzr_decode(const void* in,
           break;
         }
         case kSymUpTo6Zeros: {
-          zero_count = static_cast<int>(ReadBitsChecked(&stream, 2)) + 3;
+          zero_count = ((int)ReadBitsChecked(&stream, 2)) + 3;
           break;
         }
         case kSymUpTo22Zeros: {
-          zero_count = static_cast<int>(ReadBitsChecked(&stream, 4)) + 7;
+          zero_count = ((int)ReadBitsChecked(&stream, 4)) + 7;
           break;
         }
         case kSymUpTo278Zeros: {
-          zero_count = static_cast<int>(ReadBitsChecked(&stream, 8)) + 23;
+          zero_count = ((int)ReadBitsChecked(&stream, 8)) + 23;
           break;
         }
         case kSymUpTo16662Zeros: {
-          zero_count = static_cast<int>(ReadBitsChecked(&stream, 14)) + 279;
+          zero_count = ((int)ReadBitsChecked(&stream, 14)) + 279;
           break;
         }
         default: {
@@ -426,7 +425,7 @@ extern "C" hzr_status_t hzr_decode(const void* in,
         DBREAK("Output buffer full.");
         return HZR_FAIL;
       }
-      memset(out_ptr, 0, zero_count);
+      memset(out_ptr, 0, (size_t)zero_count);
       out_ptr += zero_count;
     }
   }

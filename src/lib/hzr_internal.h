@@ -25,17 +25,16 @@
 #define DEBUG_BREAK() raise(SIGTRAP)
 #endif
 #include <stdio.h>
-#define DLOG(s, ...) \
-  printf("%s:%d: %s\n", __FILE__, __LINE__, (s), ##__VA_ARGS__)
-#define DBREAK(s, ...)      \
-  do {                      \
-    DLOG(s, ##__VA_ARGS__); \
-    DEBUG_BREAK();          \
+#define DLOG(s) printf("%s:%d: %s\n", __FILE__, __LINE__, (s))
+#define DBREAK(s)  \
+  do {             \
+    DLOG(s);       \
+    DEBUG_BREAK(); \
   } while (0)
 #else
 #define DEBUG_BREAK()
-#define DLOG(s, ...)
-#define DBREAK(s, ...)
+#define DLOG(s)
+#define DBREAK(s)
 #endif
 
 // Min/max macros.
@@ -43,10 +42,7 @@
 #define hzr_max(x, y) ((x) >= (y) ? (x) : (y))
 
 // Types.
-enum hzr_bool {
-  HZR_FALSE = 0,
-  HZR_TRUE = 1
-};
+typedef enum { HZR_FALSE = 0, HZR_TRUE = 1 } hzr_bool;
 
 // Encoded data header size (in bytes).
 // The header format is:
