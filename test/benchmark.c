@@ -31,8 +31,8 @@ static double get_time() {
 
 static const int NUM_BENCHMARK_ITERATIONS = 1000;
 
-void print_results(const char* str, double dt, size_t uncompressed_size) {
-  double speed = (double)(NUM_BENCHMARK_ITERATIONS * uncompressed_size) / dt;
+void print_results(const char* str, double dt, size_t num_bytes) {
+  double speed = (double)(NUM_BENCHMARK_ITERATIONS * num_bytes) / dt;
   printf("  %s: %.2f MB/s\n", str, speed / (1024.0 * 1024.0));
 }
 
@@ -72,7 +72,7 @@ int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
     }
   }
   dt = get_time() - t0;
-  print_results("Verify", dt, uncompressed_size);
+  print_results("Verify", dt, compressed_size);
 
   if (uncompressed_size2 != uncompressed_size) {
     printf("  - Decoded size mismatch: %ld != %ld\n", uncompressed_size2, uncompressed_size);
