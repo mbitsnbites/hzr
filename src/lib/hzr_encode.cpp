@@ -38,10 +38,9 @@ class WriteStream {
     while (bits--) {
       *buf = (*buf & (0xff ^ (1 << bit))) | ((x & 1) << bit);
       x >>= 1;
-      bit = (bit + 1) & 7;
-      if (!bit) {
-        ++buf;
-      }
+      bit++;
+      buf += bit >> 3;
+      bit = bit & 7;
     }
 
     // Store new stream state.
