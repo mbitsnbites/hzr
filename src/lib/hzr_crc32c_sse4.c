@@ -37,7 +37,7 @@ static void cpuid(unsigned func,
 }
 
 /* Check if we can use SSE 4.2, at runtime. */
-int _hzr_can_use_sse4_2() {
+int _hzr_can_use_sse4_2(void) {
   unsigned a, b, c, d;
   cpuid(CPUID_VENDOR_ID, &a, &b, &c, &d);
   if (a >= CPUID_FEATURES) {
@@ -61,11 +61,11 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   /* Use as big chunks as possible. */
 #if defined(__x86_64__) || defined(_M_X64)
   for (; size >= 8; size -= 8, buf += 8) {
-    crc = _mm_crc32_u64(crc, *(uint64_t*)buf);
+    crc = (uint32_t)_mm_crc32_u64(crc, *(const uint64_t*)buf);
   }
 #else
   for (; size >= 4; size -= 4, buf += 4) {
-    crc = _mm_crc32_u32(crc, *(uint32_t*)buf);
+    crc = _mm_crc32_u32(crc, *(const uint32_t*)buf);
   }
 #endif
 
@@ -79,7 +79,7 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
 
 #else
 
-int _hzr_can_use_sse4_2() {
+int _hzr_can_use_sse4_2(void) {
   return 0;
 }
 
