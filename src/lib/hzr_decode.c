@@ -25,11 +25,10 @@ static void InitReadStream(ReadStream* stream, const void* buf, int size) {
 // Read one bit from a bitstream.
 FORCE_INLINE static int ReadBit(ReadStream* stream) {
   // Extract one bit.
-  int x = (*stream->byte_ptr >> stream->bit_pos) & 1;
-  stream->bit_pos = (stream->bit_pos + 1) & 7;
-  if (stream->bit_pos == 0) {
-    ++stream->byte_ptr;
-  }
+  int x = ((*stream->byte_ptr) >> stream->bit_pos) & 1;
+  int new_bit_pos = stream->bit_pos + 1;
+  stream->bit_pos = new_bit_pos & 7;
+  stream->byte_ptr += new_bit_pos >> 3;
 
   return x;
 }
