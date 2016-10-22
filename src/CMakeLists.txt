@@ -22,15 +22,17 @@ set(lib_includes
 
 set(lib_sources
     lib/hzr_crc32c.c
-    lib/hzr_crc32c_sse4.c
     lib/hzr_decode.c
     lib/hzr_encode.cpp)
 
-# Enable SSE4.2 (for the faster CRC32C routine).
-# TODO(m): Make a proper test for this (target is x86 with SSE4.2 and compiler
-# is GNU/?).
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-  set_source_files_properties(lib/hzr_crc32c_sse4.c PROPERTIES COMPILE_FLAGS "-msse4.2")
+# Enable fast SSE 4.2-optimized CRC32C routine.
+if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "86")
+  message("Using x86 optimizations.")
+  add_definitions("-DHZR_ARCH_X86")
+  set(lib_sources ${lib_sources} lib/hzr_crc32c_sse4.c)
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    set_source_files_properties(lib/hzr_crc32c_sse4.c PROPERTIES COMPILE_FLAGS "-msse4.2")
+  endif()
 endif()
 
 add_library(hzr ${lib_sources} ${lib_includes})

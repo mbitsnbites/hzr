@@ -1,8 +1,10 @@
 #include "hzr_crc32c_sse4.h"
 
-#ifdef HZR_USE_SSE4_2
+/* Check if we are compiling with SSE 4.2 support. */
+#if defined(__SSE4_2__) || (defined(_M_IX86_FP) && (_M_IX86_FP >= 2))
 
 #include <nmmintrin.h>
+
 #if defined(__GNUC__) || defined(__clang__)
 #include <cpuid.h>
 #endif
@@ -75,4 +77,16 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   return ~crc;
 }
 
-#endif /* HZR_USE_SSE4_2 */
+#else
+
+int _hzr_can_use_sse4_2() {
+  return 0;
+}
+
+uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
+  (void)buf;
+  (void)size;
+  return 0;
+}
+
+#endif /* SSE 4.2 */
