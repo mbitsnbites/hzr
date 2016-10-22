@@ -288,8 +288,7 @@ hzr_status_t hzr_decode(const void* in,
 
   // We do the majority of the decoding in a fast, unchecked loop.
   // Note: The longest supported code + RLE encoding is 32 + 14 bits < 6 bytes.
-  const uint8_t* in_end = ((uint8_t*)in) + in_size;
-  const uint8_t* in_fast_end = in_end - 6;
+  const uint8_t* in_fast_end = stream.end_ptr - 6;
   while (stream.byte_ptr < in_fast_end) {
     int symbol;
 
@@ -306,6 +305,11 @@ hzr_status_t hzr_decode(const void* in,
       // leaf node.
       DecodeNode* node = lut_entry->node;
       while (node->symbol < 0) {
+        if (UNLIKELY(stream.byte_ptr >= stream.end_ptr)) {
+          DBREAK("Input buffer ended prematurely.");
+          return HZR_FAIL;
+        }
+
         // Get next node.
         if (ReadBit(&stream)) {
           node = node->child_b;
@@ -375,16 +379,16 @@ hzr_status_t hzr_decode(const void* in,
     }
 
     while (node->symbol < 0) {
+      if (UNLIKELY(stream.byte_ptr >= stream.end_ptr)) {
+        DBREAK("Input buffer ended prematurely.");
+        return HZR_FAIL;
+      }
+
       // Get next node.
-      if (ReadBitChecked(&stream)) {
+      if (ReadBit(&stream)) {
         node = node->child_b;
       } else {
         node = node->child_a;
-      }
-
-      if (UNLIKELY(stream.read_failed)) {
-        DBREAK("Input buffer ended prematurely.");
-        return HZR_FAIL;
       }
     }
     int symbol = node->symbol;
