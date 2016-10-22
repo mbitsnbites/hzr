@@ -23,7 +23,7 @@ static void InitReadStream(ReadStream* stream, const void* buf, int size) {
 }
 
 // Read one bit from a bitstream.
-static int ReadBit(ReadStream* stream) {
+FORCE_INLINE static int ReadBit(ReadStream* stream) {
   // Extract one bit.
   int x = (*stream->byte_ptr >> stream->bit_pos) & 1;
   stream->bit_pos = (stream->bit_pos + 1) & 7;
@@ -35,7 +35,7 @@ static int ReadBit(ReadStream* stream) {
 }
 
 // Read one bit from a bitstream, with checking.
-static int ReadBitChecked(ReadStream* stream) {
+FORCE_INLINE static int ReadBitChecked(ReadStream* stream) {
   // Check that we don't read past the end.
   if (UNLIKELY(stream->byte_ptr >= stream->end_ptr)) {
     stream->read_failed = HZR_TRUE;
@@ -47,7 +47,7 @@ static int ReadBitChecked(ReadStream* stream) {
 }
 
 // Read multiple bits from a bitstream.
-static uint32_t ReadBits(ReadStream* stream, int bits) {
+FORCE_INLINE static uint32_t ReadBits(ReadStream* stream, int bits) {
   uint32_t x = 0;
 
   // Get current stream state.
@@ -80,7 +80,7 @@ static uint32_t ReadBits(ReadStream* stream, int bits) {
 }
 
 // Read multiple bits from a bitstream, with checking.
-static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
+FORCE_INLINE static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
   // Check that we don't read past the end.
   int new_bit_pos = stream->bit_pos + bits;
   const uint8_t* new_byte_ptr = stream->byte_ptr + (new_bit_pos >> 3);
@@ -95,20 +95,20 @@ static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
 }
 
 // Peek eight bits from a bitstream (read without advancing the pointer).
-static uint8_t Peek8Bits(const ReadStream* stream) {
-  uint8_t lo = stream->byte_ptr[0], hi = stream->byte_ptr[1];
+FORCE_INLINE static uint8_t Peek8Bits(const ReadStream* stream) {
+  uint32_t lo = stream->byte_ptr[0], hi = stream->byte_ptr[1];
   return (uint8_t)(((hi << 8) | lo) >> stream->bit_pos);
 }
 
 // Advance the pointer by N bits.
-static void Advance(ReadStream* stream, int N) {
+FORCE_INLINE static void Advance(ReadStream* stream, int N) {
   int new_bit_pos = stream->bit_pos + N;
   stream->bit_pos = new_bit_pos & 7;
   stream->byte_ptr += new_bit_pos >> 3;
 }
 
 // Advance N bytes, with checking.
-static void AdvanceBytesChecked(ReadStream* stream, int N) {
+FORCE_INLINE static void AdvanceBytesChecked(ReadStream* stream, int N) {
   const uint8_t* new_byte_ptr = stream->byte_ptr + N;
 
   // Check that we don't advance past the end.
@@ -123,7 +123,7 @@ static void AdvanceBytesChecked(ReadStream* stream, int N) {
 }
 
 // Check if we have reached the end of the buffer.
-static hzr_bool AtTheEnd(const ReadStream* stream) {
+FORCE_INLINE static hzr_bool AtTheEnd(const ReadStream* stream) {
   // This is a rought estimate that we have reached the end of the input
   // buffer (not too short, and not too far).
   return ((stream->byte_ptr == stream->end_ptr && stream->bit_pos == 0) ||

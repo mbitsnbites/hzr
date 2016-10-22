@@ -15,6 +15,13 @@
 #define UNLIKELY(expr) (expr)
 #endif
 
+// Inlining macros.
+#if defined(__GNUC__)
+#define FORCE_INLINE inline __attribute__((always_inline))
+#else
+#define FORCE_INLINE
+#endif
+
 // Debug macros.
 #if !defined(NDEBUG)
 #if defined(_MSC_VER)
