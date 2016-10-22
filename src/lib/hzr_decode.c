@@ -289,10 +289,9 @@ hzr_status_t hzr_decode(const void* in,
 
   // We do the majority of the decoding in a fast, unchecked loop.
   // Note: The longest supported code + RLE encoding is 32 + 14 bits < 6 bytes.
-  // TODO: THIS IS WRONG! WE NEED TO CHECK THE INPUT BUFFER, NOT THE OUTPUT
-  // BUFFER!
-  const uint8_t* out_fast_end = out_end - 6;
-  while (out_ptr < out_fast_end) {
+  const uint8_t* in_end = ((uint8_t*)in) + in_size;
+  const uint8_t* in_fast_end = in_end - 6;
+  while (stream.byte_ptr < in_fast_end) {
     int symbol;
 
     // Peek 8 bits from the stream and use it to look up a potential symbol in
@@ -321,6 +320,10 @@ hzr_status_t hzr_decode(const void* in,
     // Decode as RLE or plain copy.
     if (LIKELY(symbol <= 255)) {
       // Plain copy.
+      if (UNLIKELY(out_ptr >= out_end)) {
+        DBREAK("Output buffer full.");
+        return HZR_FAIL;
+      }
       *out_ptr++ = (uint8_t)symbol;
     } else {
       // Symbols >= 256 are RLE tokens.
