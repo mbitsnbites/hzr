@@ -101,13 +101,13 @@ void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
   }
 
   // Build the histogram for this block.
-  for (int k = 0; k < in_size;) {
+  for (int k = 0; k < (int)in_size;) {
     Symbol symbol = static_cast<Symbol>(in[k]);
 
     // Possible RLE?
     if (symbol == 0) {
       int zeros;
-      for (zeros = 1; zeros < 16662 && (k + zeros) < in_size; ++zeros) {
+      for (zeros = 1; zeros < 16662 && (k + zeros) < (int)in_size; ++zeros) {
         if (in[k + zeros] != 0) {
           break;
         }
@@ -290,13 +290,13 @@ extern "C" hzr_status_t hzr_encode(const void* in,
   } while (swaps);
 
   // Encode the input stream.
-  for (int k = 0; k < in_size;) {
+  for (int k = 0; k < (int)in_size;) {
     uint8_t symbol = in_data[k];
 
     // Possible RLE?
     if (symbol == 0) {
       int zeros;
-      for (zeros = 1; zeros < 16662 && (k + zeros) < in_size; ++zeros) {
+      for (zeros = 1; zeros < 16662 && (k + zeros) < (int)in_size; ++zeros) {
         if (in_data[k + zeros] != 0) {
           break;
         }
