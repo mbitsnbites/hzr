@@ -58,10 +58,10 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   if (align != 0U) {
     align = ALIGN_TO_BYTES - align;
     align = align > size ? size : align;
+    size -= align;
     for (; align; --align) {
       crc = _mm_crc32_u8(crc, *buf++);
     }
-    size -= align;
   }
 
   /* Use as big chunks as possible. */
