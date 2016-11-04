@@ -1,20 +1,16 @@
 # -*- mode: CMake; tab-width: 2; indent-tabs-mode: nil; -*-
-cmake_minimum_required(VERSION 3.5)
-
-# We require C++11 for building this library.
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+cmake_minimum_required(VERSION 3.0)
 
 # Enable warnings, and treat them as errors.
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -W -Wall -Wextra -pedantic -Werror")
-  set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -W -Wall -Wextra -pedantic -Werror")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -W -Wall -Wextra -pedantic -Werror -std=c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CPP_FLAGS} -W -Wall -Wextra -pedantic -Werror -std=c++11")
 elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything -Wno-padded -Wno-cast-align -Werror")
-  set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -Weverything -Wno-padded -Werror")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything -Wno-padded -Wno-cast-align -Werror -std=c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CPP_FLAGS} -Weverything -Wno-padded -Werror -std=c++11")
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
-  set(CMAKE_CPP_FLAGS "${CMAKE_C_FLAGS} /WX")
+  set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} /WX")
 endif()
 
 set(lib_includes
