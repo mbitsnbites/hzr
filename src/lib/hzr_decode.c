@@ -9,27 +9,50 @@
 // A helper for decoding binary data.
 typedef struct {
   const uint8_t* byte_ptr;
-  int bit_pos;
   const uint8_t* end_ptr;
+  int bit_pos;
+  uint32_t bit_cache;
   hzr_bool read_failed;
 } ReadStream;
 
 // Initialize a bitstream.
 static void InitReadStream(ReadStream* stream, const void* buf, int size) {
   stream->byte_ptr = (const uint8_t*)buf;
-  stream->bit_pos = 0;
   stream->end_ptr = ((const uint8_t*)buf) + size;
+  stream->bit_pos = 0;
   stream->read_failed = HZR_FALSE;
+
+  // Pre-fill the bit cache.
+  stream->bit_cache = 0U;
+  for (int i = 0; i < 4 && i < size; ++i) {
+    stream->bit_cache |= ((uint32_t)stream->byte_ptr[i]) << (8 * i);
+  }
+}
+
+FORCE_INLINE static void UpdateBitCache(ReadStream* stream) {
+  while (stream->bit_pos >= 8) {
+    stream->bit_cache = (stream->bit_cache >> 8) | (((uint32_t)stream->byte_ptr[4]) << 24);
+    stream->bit_pos -= 8;
+    stream->byte_ptr++;
+  }
+}
+
+FORCE_INLINE static void UpdateBitCacheSafe(ReadStream* stream) {
+  while (stream->bit_pos >= 8) {
+    stream->bit_cache >>= 8;
+    if ((stream->byte_ptr + 4) < stream->end_ptr) {
+      stream->bit_cache |= ((uint32_t)stream->byte_ptr[4]) << 24;
+    }
+    stream->byte_ptr++;
+    stream->bit_pos -= 8;
+  }
 }
 
 // Read one bit from a bitstream.
 FORCE_INLINE static int ReadBit(ReadStream* stream) {
-  // Extract one bit.
-  int x = ((*stream->byte_ptr) >> stream->bit_pos) & 1;
-  int new_bit_pos = stream->bit_pos + 1;
-  stream->bit_pos = new_bit_pos & 7;
-  stream->byte_ptr += new_bit_pos >> 3;
-
+  int x = (stream->bit_cache >> stream->bit_pos) & 1;
+  stream->bit_pos++;
+  UpdateBitCache(stream);
   return x;
 }
 
@@ -42,38 +65,41 @@ FORCE_INLINE static int ReadBitChecked(ReadStream* stream) {
   }
 
   // Ok, read...
-  return ReadBit(stream);
+  int x = (stream->bit_cache >> stream->bit_pos) & 1;
+  stream->bit_pos++;
+  UpdateBitCacheSafe(stream);
+  return x;
 }
+
+static const uint32_t s_bits_mask[33] = {
+  0, // Index zero is never used, since the index is in the range [1,32].
+  0x00000001U, 0x00000003U, 0x00000007U, 0x0000000fU,
+  0x0000001fU, 0x0000003fU, 0x0000007fU, 0x000000ffU,
+  0x000001ffU, 0x000003ffU, 0x000007ffU, 0x00000fffU,
+  0x00001fffU, 0x00003fffU, 0x00007fffU, 0x0000ffffU,
+  0x0001ffffU, 0x0003ffffU, 0x0007ffffU, 0x000fffffU,
+  0x001fffffU, 0x003fffffU, 0x007fffffU, 0x00ffffffU,
+  0x01ffffffU, 0x03ffffffU, 0x07ffffffU, 0x0fffffffU,
+  0x1fffffffU, 0x3fffffffU, 0x7fffffffU, 0xffffffffU
+};
 
 // Read multiple bits from a bitstream.
 FORCE_INLINE static uint32_t ReadBits(ReadStream* stream, int bits) {
-  uint32_t x = 0;
+  // Read up to 32 bits at once.
+  int bits_to_read = hzr_min(32 - stream->bit_pos, bits);
+  uint32_t x = (stream->bit_cache >> stream->bit_pos) & s_bits_mask[bits_to_read];
+  stream->bit_pos += bits_to_read;
+  bits -= bits_to_read;
+  UpdateBitCache(stream);
 
-  // Get current stream state.
-  const uint8_t* buf = stream->byte_ptr;
-  int bit = stream->bit_pos;
-
-  // Extract bits.
-  // TODO(m): Optimize this!
-  int shift = 0;
-  while (bits) {
-    int bits_to_extract = hzr_min(bits, 8 - bit);
-    bits -= bits_to_extract;
-
-    uint8_t mask = 0xff >> (8 - bits_to_extract);
-    x = x | (((uint32_t)((*buf >> bit) & mask)) << shift);
-    shift += bits_to_extract;
-
-    bit += bits_to_extract;
-    if (bit >= 8) {
-      bit -= 8;
-      ++buf;
-    }
+  // In the very unlikely case that we didn't get all the bits in the first
+  // pass, we have to do a second pass (the caller has to request *at least*
+  // 24 bits at once for this to ever happen).
+  if (UNLIKELY(bits > 0)) {
+    x |= (stream->bit_cache & s_bits_mask[bits]) << bits_to_read;
+    stream->bit_pos += bits;
+    UpdateBitCache(stream);
   }
-
-  // Store new stream state.
-  stream->bit_pos = bit;
-  stream->byte_ptr = buf;
 
   return x;
 }
@@ -89,36 +115,51 @@ FORCE_INLINE static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
     return 0;
   }
 
-  // Ok, read...
-  return ReadBits(stream, bits);
+  // Ok, read up to 32 bits at once.
+  int bits_to_read = hzr_min(32 - stream->bit_pos, bits);
+  uint32_t x = (stream->bit_cache >> stream->bit_pos) & s_bits_mask[bits_to_read];
+  stream->bit_pos += bits_to_read;
+  bits -= bits_to_read;
+  UpdateBitCacheSafe(stream);
+
+  // In the very unlikely case that we didn't get all the bits in the first
+  // pass, we have to do a second pass (the caller has to request *at least*
+  // 24 bits at once for this to ever happen).
+  if (UNLIKELY(bits > 0)) {
+    x |= (stream->bit_cache & s_bits_mask[bits]) << bits_to_read;
+    stream->bit_pos += bits;
+    UpdateBitCacheSafe(stream);
+  }
+
+  return x;
 }
 
 // Peek eight bits from a bitstream (read without advancing the pointer).
 FORCE_INLINE static uint8_t Peek8Bits(const ReadStream* stream) {
-  uint32_t lo = stream->byte_ptr[0], hi = stream->byte_ptr[1];
-  return (uint8_t)(((hi << 8) | lo) >> stream->bit_pos);
+  return (uint8_t)(stream->bit_cache >> stream->bit_pos);
 }
 
 // Advance the pointer by N bits.
 FORCE_INLINE static void Advance(ReadStream* stream, int N) {
-  int new_bit_pos = stream->bit_pos + N;
-  stream->bit_pos = new_bit_pos & 7;
-  stream->byte_ptr += new_bit_pos >> 3;
+  stream->bit_pos += N;
+  UpdateBitCache(stream);
 }
 
-// Advance N bytes, with checking.
-FORCE_INLINE static void AdvanceBytesChecked(ReadStream* stream, int N) {
-  const uint8_t* new_byte_ptr = stream->byte_ptr + N;
+// Advance the pointer by N bits, with checking.
+FORCE_INLINE static void AdvanceChecked(ReadStream* stream, int N) {
+  int new_bit_pos = stream->bit_pos + N;
+  const uint8_t* new_byte_ptr = stream->byte_ptr + (new_bit_pos >> 3);
 
   // Check that we don't advance past the end.
   if (UNLIKELY(new_byte_ptr > stream->end_ptr ||
-               (new_byte_ptr == stream->end_ptr && (stream->bit_pos != 0)))) {
+               (new_byte_ptr == stream->end_ptr && ((new_bit_pos & 7) != 0)))) {
     stream->read_failed = HZR_TRUE;
     return;
   }
 
   // Ok, advance...
-  stream->byte_ptr = new_byte_ptr;
+  stream->bit_pos = new_bit_pos;
+  UpdateBitCacheSafe(stream);
 }
 
 // Check if we have reached the end of the buffer.
@@ -267,7 +308,7 @@ hzr_status_t hzr_decode(const void* in,
   // Skip the header.
   ReadStream stream;
   InitReadStream(&stream, in, (int)in_size);  // TODO(m): Preserve precision.
-  AdvanceBytesChecked(&stream, HZR_HEADER_SIZE);
+  AdvanceChecked(&stream, HZR_HEADER_SIZE * 8);
   if (stream.read_failed) {
     DBREAK("Unable to skip past the header.");
     return HZR_FAIL;
@@ -282,13 +323,15 @@ hzr_status_t hzr_decode(const void* in,
     return HZR_FAIL;
   }
 
-  // Decode input stream.
+  // Decode the input stream.
   uint8_t* out_ptr = (uint8_t*)out;
   const uint8_t* out_end = out_ptr + out_size;
 
-  // We do the majority of the decoding in a fast, unchecked loop.
+  // We do the majority of the decoding in a fast, unchecked loop. During this
+  // loop, we use a bit cache.
   // Note: The longest supported code + RLE encoding is 32 + 14 bits < 6 bytes.
-  const uint8_t* in_fast_end = stream.end_ptr - 6;
+  // Additionally, the bit cache needs four bytes look-ahead.
+  const uint8_t* in_fast_end = stream.end_ptr - 10;
   while (stream.byte_ptr < in_fast_end) {
     int symbol;
 
@@ -375,20 +418,25 @@ hzr_status_t hzr_decode(const void* in,
     // Special case: Only one symbol in the entire tree -> root node is a leaf
     // node.
     if (node->symbol >= 0) {
-      Advance(&stream, 1);
-    }
+      AdvanceChecked(&stream, 1);
 
-    while (node->symbol < 0) {
-      if (UNLIKELY(stream.byte_ptr >= stream.end_ptr)) {
+      if (UNLIKELY(stream.read_failed)) {
         DBREAK("Input buffer ended prematurely.");
         return HZR_FAIL;
       }
+    }
 
+    while (node->symbol < 0) {
       // Get next node.
-      if (ReadBit(&stream)) {
+      if (ReadBitChecked(&stream)) {
         node = node->child_b;
       } else {
         node = node->child_a;
+      }
+
+      if (UNLIKELY(stream.read_failed)) {
+        DBREAK("Input buffer ended prematurely.");
+        return HZR_FAIL;
       }
     }
     int symbol = node->symbol;
