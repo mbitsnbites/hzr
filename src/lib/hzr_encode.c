@@ -19,7 +19,7 @@ typedef struct {
 } WriteStream;
 
 // Initialize a bitstream.
-static void InitWriteStream(WriteStream* stream, const void* buf, size_t size) {
+static void InitWriteStream(WriteStream* stream, void* buf, size_t size) {
   stream->byte_ptr = (uint8_t*)buf;
   stream->base_ptr = stream->byte_ptr;
   stream->end_ptr = ((uint8_t*)buf) + size;
@@ -55,7 +55,7 @@ FORCE_INLINE static void WriteBits(WriteStream* stream, uint32_t x, int bits) {
   // Append bits.
   // TODO(m): Optimize this!
   while (bits--) {
-    *buf = (*buf & (0xff ^ (1 << bit))) | ((x & 1) << bit);
+    *buf = (*buf & (uint8_t)(0xffU ^ (1U << bit))) | (uint8_t)((x & 1U) << bit);
     x >>= 1;
     bit++;
     buf += bit >> 3;
