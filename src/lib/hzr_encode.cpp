@@ -86,7 +86,7 @@ struct EncodeNode {
 static void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
   // Clear/init histogram.
   for (int k = 0; k < kNumSymbols; ++k) {
-    symbols[k].symbol = static_cast<Symbol>(k);
+    symbols[k].symbol = (Symbol)k;
     symbols[k].count = 0;
     symbols[k].code = 0;
     symbols[k].bits = 0;
@@ -94,7 +94,7 @@ static void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
 
   // Build the histogram for this block.
   for (size_t k = 0; k < in_size;) {
-    Symbol symbol = static_cast<Symbol>(in[k]);
+    Symbol symbol = (Symbol)in[k];
 
     // Possible RLE?
     if (symbol == 0) {
@@ -136,12 +136,12 @@ static void StoreTree(EncodeNode* node,
   if (node->symbol >= 0) {
     // Append symbol to tree description.
     WriteBits(stream, 1, 1);
-    WriteBits(stream, static_cast<uint32_t>(node->symbol), kSymbolSize);
+    WriteBits(stream, (uint32_t)node->symbol, kSymbolSize);
 
     // Find symbol index.
     int sym_idx;
     for (sym_idx = 0; sym_idx < kNumSymbols; ++sym_idx) {
-      if (symbols[sym_idx].symbol == static_cast<Symbol>(node->symbol)) {
+      if (symbols[sym_idx].symbol == (Symbol)node->symbol) {
         break;
       }
     }
@@ -169,10 +169,10 @@ static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
   int num_symbols = 0;
   for (int k = 0; k < kNumSymbols; ++k) {
     if (sym[k].count > 0) {
-      nodes[num_symbols].symbol = static_cast<int>(sym[k].symbol);
+      nodes[num_symbols].symbol = (int)sym[k].symbol;
       nodes[num_symbols].count = sym[k].count;
-      nodes[num_symbols].child_a = nullptr;
-      nodes[num_symbols].child_b = nullptr;
+      nodes[num_symbols].child_a = NULL;
+      nodes[num_symbols].child_b = NULL;
       ++num_symbols;
     }
   }
@@ -185,13 +185,13 @@ static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
 
   // Build tree by joining the lightest nodes until there is only one node left
   // (the root node).
-  EncodeNode* root = nullptr;
+  EncodeNode* root = NULL;
   int nodes_left = num_symbols;
   int next_idx = num_symbols;
   while (nodes_left > 1) {
     // Find the two lightest nodes.
-    EncodeNode* node_1 = nullptr;
-    EncodeNode* node_2 = nullptr;
+    EncodeNode* node_1 = NULL;
+    EncodeNode* node_2 = NULL;
     for (int k = 0; k < next_idx; ++k) {
       if (nodes[k].count > 0) {
         if (!node_1 || (nodes[k].count <= node_1->count)) {
@@ -279,13 +279,13 @@ extern "C" hzr_status_t hzr_encode(const void* in,
   } while (swaps);
 
   // Encode the input stream.
-  for (int k = 0; k < (int)in_size;) {
+  for (size_t k = 0; k < in_size;) {
     uint8_t symbol = in_data[k];
 
     // Possible RLE?
     if (symbol == 0) {
-      int zeros;
-      for (zeros = 1; zeros < 16662 && (k + zeros) < (int)in_size; ++zeros) {
+      size_t zeros;
+      for (zeros = 1U; zeros < 16662U && (k + zeros) < in_size; ++zeros) {
         if (in_data[k + zeros] != 0) {
           break;
         }
@@ -296,22 +296,22 @@ extern "C" hzr_status_t hzr_encode(const void* in,
         WriteBits(&stream, symbols[kSymTwoZeros].code,
                   symbols[kSymTwoZeros].bits);
       } else if (zeros <= 6) {
-        uint32_t count = static_cast<uint32_t>(zeros - 3);
+        uint32_t count = (uint32_t)(zeros - 3);
         WriteBits(&stream, symbols[kSymUpTo6Zeros].code,
                   symbols[kSymUpTo6Zeros].bits);
         WriteBits(&stream, count, 2);
       } else if (zeros <= 22) {
-        uint32_t count = static_cast<uint32_t>(zeros - 7);
+        uint32_t count = (uint32_t)(zeros - 7);
         WriteBits(&stream, symbols[kSymUpTo22Zeros].code,
                   symbols[kSymUpTo22Zeros].bits);
         WriteBits(&stream, count, 4);
       } else if (zeros <= 278) {
-        uint32_t count = static_cast<uint32_t>(zeros - 23);
+        uint32_t count = (uint32_t)(zeros - 23);
         WriteBits(&stream, symbols[kSymUpTo278Zeros].code,
                   symbols[kSymUpTo278Zeros].bits);
         WriteBits(&stream, count, 8);
       } else {
-        uint32_t count = static_cast<uint32_t>(zeros - 279);
+        uint32_t count = (uint32_t)(zeros - 279);
         WriteBits(&stream, symbols[kSymUpTo16662Zeros].code,
                   symbols[kSymUpTo16662Zeros].bits);
         WriteBits(&stream, count, 14);
