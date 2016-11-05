@@ -263,22 +263,6 @@ hzr_status_t hzr_encode(const void* in,
   // Build the Huffman tree, and write it to the output stream.
   MakeTree(symbols, &stream);
 
-  // Sort symbols - first symbol first (bubble sort).
-  // TODO(m): Quick-sort.
-  // TODO(m): IS THIS NEEDED?! symbols[] is already sorted by symbols?
-  hzr_bool swaps;
-  do {
-    swaps = HZR_FALSE;
-    for (int k = 0; k < kNumSymbols - 1; ++k) {
-      if (symbols[k].symbol > symbols[k + 1].symbol) {
-        SymbolInfo tmp = symbols[k];
-        symbols[k] = symbols[k + 1];
-        symbols[k + 1] = tmp;
-        swaps = HZR_TRUE;
-      }
-    }
-  } while (swaps);
-
   // Encode the input stream.
   for (size_t k = 0; k < in_size;) {
     uint8_t symbol = in_data[k];
