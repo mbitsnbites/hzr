@@ -10,13 +10,13 @@
 #define kMaxTreeDataSize (((2 + kSymbolSize) * kNumSymbols + 7) / 8)
 
 // A helper for decoding binary data.
-struct WriteStream {
+typedef struct {
   uint8_t* base_ptr;
   uint8_t* end_ptr;
   uint8_t* byte_ptr;
   int bit_pos;
   hzr_bool write_failed;
-};
+} WriteStream;
 
 // Initialize a bitstream.
 static void InitWriteStream(WriteStream* stream, const void* buf, size_t size) {
@@ -68,15 +68,16 @@ FORCE_INLINE static void WriteBits(WriteStream* stream, uint32_t x, int bits) {
 }
 
 // Used by the encoder for building the optimal Huffman tree.
-struct SymbolInfo {
+typedef struct {
   Symbol symbol;  // TODO(m): Is this needed?!
                   // All SymbolInfos seem to be indexed by the symbol no.
   int count;
   uint32_t code;
   int bits;
-};
+} SymbolInfo;
 
-struct EncodeNode {
+typedef struct EncodeNode_struct EncodeNode;
+struct EncodeNode_struct {
   EncodeNode *child_a, *child_b;
   int count;
   int symbol;
@@ -226,24 +227,24 @@ static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
   }
 }
 
-extern "C" size_t hzr_max_compressed_size(size_t uncompressed_size) {
+size_t hzr_max_compressed_size(size_t uncompressed_size) {
   // TODO(m): Find out what the ACTUAL limit is. This should be on the safe
   // side.
   return uncompressed_size + ((uncompressed_size + 255) >> 8) +
          kMaxTreeDataSize + HZR_HEADER_SIZE;
 }
 
-extern "C" hzr_status_t hzr_encode(const void* in,
-                                   size_t in_size,
-                                   void* out,
-                                   size_t out_size,
-                                   size_t* encoded_size) {
+hzr_status_t hzr_encode(const void* in,
+                        size_t in_size,
+                        void* out,
+                        size_t out_size,
+                        size_t* encoded_size) {
   // Check input arguments.
   if (!in || !out || !encoded_size) {
     return HZR_FAIL;
   }
 
-  const uint8_t* in_data = reinterpret_cast<const uint8_t*>(in);
+  const uint8_t* in_data = (const uint8_t*)in;
 
   // Initialize the output stream.
   // TODO(m): Keep track of the output size!
@@ -265,15 +266,15 @@ extern "C" hzr_status_t hzr_encode(const void* in,
   // Sort symbols - first symbol first (bubble sort).
   // TODO(m): Quick-sort.
   // TODO(m): IS THIS NEEDED?! symbols[] is already sorted by symbols?
-  bool swaps;
+  hzr_bool swaps;
   do {
-    swaps = false;
+    swaps = HZR_FALSE;
     for (int k = 0; k < kNumSymbols - 1; ++k) {
       if (symbols[k].symbol > symbols[k + 1].symbol) {
         SymbolInfo tmp = symbols[k];
         symbols[k] = symbols[k + 1];
         symbols[k + 1] = tmp;
-        swaps = true;
+        swaps = HZR_TRUE;
       }
     }
   } while (swaps);
