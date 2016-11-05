@@ -1,79 +1,71 @@
 #include "libhzr.h"
 
-#include <cstdint>
+#include <stdint.h>
 
 #include "hzr_crc32c.h"
 #include "hzr_internal.h"
-
-namespace hzr {
-
-namespace {
 
 // The maximum size of the tree representation (there are two additional bits
 // per leaf node, representing the branches in the tree).
 #define kMaxTreeDataSize (((2 + kSymbolSize) * kNumSymbols + 7) / 8)
 
-class WriteStream {
- public:
-  // Initialize a bitstream.
-  explicit WriteStream(void* buf)
-      : m_base_ptr(reinterpret_cast<uint8_t*>(buf)),
-        m_byte_ptr(reinterpret_cast<uint8_t*>(buf)),
-        m_bit_pos(0) {}
-
-  // Reset the write position (rewind).
-  void Reset() {
-    m_byte_ptr = m_base_ptr;
-    m_bit_pos = 0;
-  }
-
-  // Write bits to a bitstream.
-  void WriteBits(uint32_t x, int bits) {
-    // Get current stream state.
-    uint8_t* buf = m_byte_ptr;
-    int bit = m_bit_pos;
-
-    // Append bits.
-    // TODO(m): Optimize this!
-    while (bits--) {
-      *buf = (*buf & (0xff ^ (1 << bit))) | ((x & 1) << bit);
-      x >>= 1;
-      bit++;
-      buf += bit >> 3;
-      bit = bit & 7;
-    }
-
-    // Store new stream state.
-    m_byte_ptr = buf;
-    m_bit_pos = bit;
-  }
-
-  // Align the stream to a byte boundary (do nothing if already aligned).
-  void AlignToByte() {
-    if (m_bit_pos) {
-      m_bit_pos = 0;
-      ++m_byte_ptr;
-    }
-  }
-
-  // Advance N bytes.
-  void AdvanceBytes(int N) { m_byte_ptr += N; }
-
-  int Size() const {
-    int total_bytes = static_cast<int>(m_byte_ptr - m_base_ptr);
-    if (m_bit_pos > 0) {
-      ++total_bytes;
-    }
-    return total_bytes;
-  }
-
-  uint8_t* byte_ptr() { return m_byte_ptr; }
-
- private:
-  uint8_t* m_base_ptr;
-  uint8_t* m_byte_ptr;
-  int m_bit_pos;
+// A helper for decoding binary data.
+struct WriteStream {
+  uint8_t* base_ptr;
+  uint8_t* end_ptr;
+  uint8_t* byte_ptr;
+  int bit_pos;
+  hzr_bool write_failed;
 };
+
+// Initialize a bitstream.
+static void InitWriteStream(WriteStream* stream, const void* buf, size_t size) {
+  stream->byte_ptr = (uint8_t*)buf;
+  stream->base_ptr = stream->byte_ptr;
+  stream->end_ptr = ((uint8_t*)buf) + size;
+  stream->bit_pos = 0;
+  stream->write_failed = HZR_FALSE;
+}
+
+// Reset the write position (rewind).
+FORCE_INLINE static void Reset(WriteStream* stream) {
+  stream->byte_ptr = stream->base_ptr;
+  stream->bit_pos = 0;
+}
+
+// Advance N bytes.
+FORCE_INLINE static void AdvanceBytes(WriteStream* stream, int N) {
+  stream->byte_ptr += N;
+}
+
+FORCE_INLINE static size_t StreamSize(const WriteStream* stream) {
+  size_t total_bytes = (size_t)(stream->byte_ptr - stream->base_ptr);
+  if (stream->bit_pos > 0) {
+    ++total_bytes;
+  }
+  return total_bytes;
+}
+
+// Write bits to a bitstream.
+FORCE_INLINE static void WriteBits(WriteStream* stream, uint32_t x, int bits) {
+  // Get current stream state.
+  uint8_t* buf = stream->byte_ptr;
+  int bit = stream->bit_pos;
+
+  // Append bits.
+  // TODO(m): Optimize this!
+  while (bits--) {
+    *buf = (*buf & (0xff ^ (1 << bit))) | ((x & 1) << bit);
+    x >>= 1;
+    bit++;
+    buf += bit >> 3;
+    bit = bit & 7;
+  }
+
+  // Store new stream state.
+  stream->byte_ptr = buf;
+  stream->bit_pos = bit;
+}
 
 // Used by the encoder for building the optimal Huffman tree.
 struct SymbolInfo {
@@ -91,7 +83,7 @@ struct EncodeNode {
 };
 
 // Calculate histogram for a block of data.
-void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
+static void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
   // Clear/init histogram.
   for (int k = 0; k < kNumSymbols; ++k) {
     symbols[k].symbol = static_cast<Symbol>(k);
@@ -101,26 +93,26 @@ void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
   }
 
   // Build the histogram for this block.
-  for (int k = 0; k < (int)in_size;) {
+  for (size_t k = 0; k < in_size;) {
     Symbol symbol = static_cast<Symbol>(in[k]);
 
     // Possible RLE?
     if (symbol == 0) {
-      int zeros;
-      for (zeros = 1; zeros < 16662 && (k + zeros) < (int)in_size; ++zeros) {
+      size_t zeros;
+      for (zeros = 1U; zeros < 16662U && (k + zeros) < in_size; ++zeros) {
         if (in[k + zeros] != 0) {
           break;
         }
       }
-      if (zeros == 1) {
+      if (zeros == 1U) {
         symbols[0].count++;
-      } else if (zeros == 2) {
+      } else if (zeros == 2U) {
         symbols[kSymTwoZeros].count++;
-      } else if (zeros <= 6) {
+      } else if (zeros <= 6U) {
         symbols[kSymUpTo6Zeros].count++;
-      } else if (zeros <= 22) {
+      } else if (zeros <= 22U) {
         symbols[kSymUpTo22Zeros].count++;
-      } else if (zeros <= 278) {
+      } else if (zeros <= 278U) {
         symbols[kSymUpTo278Zeros].count++;
       } else {
         symbols[kSymUpTo16662Zeros].count++;
@@ -135,16 +127,16 @@ void Histogram(const uint8_t* in, SymbolInfo* symbols, size_t in_size) {
 
 // Store a Huffman tree in the output stream and in a look-up-table (a symbol
 // array).
-void StoreTree(EncodeNode* node,
-               SymbolInfo* symbols,
-               WriteStream* stream,
-               uint32_t code,
-               int bits) {
+static void StoreTree(EncodeNode* node,
+                      SymbolInfo* symbols,
+                      WriteStream* stream,
+                      uint32_t code,
+                      int bits) {
   // Is this a leaf node?
   if (node->symbol >= 0) {
     // Append symbol to tree description.
-    stream->WriteBits(1, 1);
-    stream->WriteBits(static_cast<uint32_t>(node->symbol), kSymbolSize);
+    WriteBits(stream, 1, 1);
+    WriteBits(stream, static_cast<uint32_t>(node->symbol), kSymbolSize);
 
     // Find symbol index.
     int sym_idx;
@@ -161,7 +153,7 @@ void StoreTree(EncodeNode* node,
   }
 
   // This was not a leaf node.
-  stream->WriteBits(0, 1);
+  WriteBits(stream, 0, 1);
 
   // Branch A.
   StoreTree(node->child_a, symbols, stream, code, bits + 1);
@@ -171,7 +163,7 @@ void StoreTree(EncodeNode* node,
 }
 
 // Generate a Huffman tree.
-void MakeTree(SymbolInfo* sym, WriteStream* stream) {
+static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
   // Initialize all leaf nodes.
   EncodeNode nodes[kMaxTreeNodes];
   int num_symbols = 0;
@@ -234,10 +226,6 @@ void MakeTree(SymbolInfo* sym, WriteStream* stream) {
   }
 }
 
-}  // namespace
-
-}  // namespace hzr
-
 extern "C" size_t hzr_max_compressed_size(size_t uncompressed_size) {
   // TODO(m): Find out what the ACTUAL limit is. This should be on the safe
   // side.
@@ -260,18 +248,19 @@ extern "C" hzr_status_t hzr_encode(const void* in,
   // Initialize the output stream.
   // TODO(m): Keep track of the output size!
   (void)out_size;
-  hzr::WriteStream stream(out);
+  WriteStream stream;
+  InitWriteStream(&stream, out, in_size);
 
   // Make room for the header.
-  stream.AdvanceBytes(HZR_HEADER_SIZE);
-  const uint8_t* encoded_start = stream.byte_ptr();
+  AdvanceBytes(&stream, HZR_HEADER_SIZE);
+  const uint8_t* encoded_start = stream.byte_ptr;
 
   // Calculate the histogram for input data.
-  hzr::SymbolInfo symbols[kNumSymbols];
-  hzr::Histogram(in_data, symbols, in_size);
+  SymbolInfo symbols[kNumSymbols];
+  Histogram(in_data, symbols, in_size);
 
   // Build the Huffman tree, and write it to the output stream.
-  hzr::MakeTree(symbols, &stream);
+  MakeTree(symbols, &stream);
 
   // Sort symbols - first symbol first (bubble sort).
   // TODO(m): Quick-sort.
@@ -281,7 +270,7 @@ extern "C" hzr_status_t hzr_encode(const void* in,
     swaps = false;
     for (int k = 0; k < kNumSymbols - 1; ++k) {
       if (symbols[k].symbol > symbols[k + 1].symbol) {
-        hzr::SymbolInfo tmp = symbols[k];
+        SymbolInfo tmp = symbols[k];
         symbols[k] = symbols[k + 1];
         symbols[k + 1] = tmp;
         swaps = true;
@@ -302,48 +291,48 @@ extern "C" hzr_status_t hzr_encode(const void* in,
         }
       }
       if (zeros == 1) {
-        stream.WriteBits(symbols[0].code, symbols[0].bits);
+        WriteBits(&stream, symbols[0].code, symbols[0].bits);
       } else if (zeros == 2) {
-        stream.WriteBits(symbols[kSymTwoZeros].code,
-                         symbols[kSymTwoZeros].bits);
+        WriteBits(&stream, symbols[kSymTwoZeros].code,
+                  symbols[kSymTwoZeros].bits);
       } else if (zeros <= 6) {
         uint32_t count = static_cast<uint32_t>(zeros - 3);
-        stream.WriteBits(symbols[kSymUpTo6Zeros].code,
-                         symbols[kSymUpTo6Zeros].bits);
-        stream.WriteBits(count, 2);
+        WriteBits(&stream, symbols[kSymUpTo6Zeros].code,
+                  symbols[kSymUpTo6Zeros].bits);
+        WriteBits(&stream, count, 2);
       } else if (zeros <= 22) {
         uint32_t count = static_cast<uint32_t>(zeros - 7);
-        stream.WriteBits(symbols[kSymUpTo22Zeros].code,
-                         symbols[kSymUpTo22Zeros].bits);
-        stream.WriteBits(count, 4);
+        WriteBits(&stream, symbols[kSymUpTo22Zeros].code,
+                  symbols[kSymUpTo22Zeros].bits);
+        WriteBits(&stream, count, 4);
       } else if (zeros <= 278) {
         uint32_t count = static_cast<uint32_t>(zeros - 23);
-        stream.WriteBits(symbols[kSymUpTo278Zeros].code,
-                         symbols[kSymUpTo278Zeros].bits);
-        stream.WriteBits(count, 8);
+        WriteBits(&stream, symbols[kSymUpTo278Zeros].code,
+                  symbols[kSymUpTo278Zeros].bits);
+        WriteBits(&stream, count, 8);
       } else {
         uint32_t count = static_cast<uint32_t>(zeros - 279);
-        stream.WriteBits(symbols[kSymUpTo16662Zeros].code,
-                         symbols[kSymUpTo16662Zeros].bits);
-        stream.WriteBits(count, 14);
+        WriteBits(&stream, symbols[kSymUpTo16662Zeros].code,
+                  symbols[kSymUpTo16662Zeros].bits);
+        WriteBits(&stream, count, 14);
       }
       k += zeros;
     } else {
-      stream.WriteBits(symbols[symbol].code, symbols[symbol].bits);
+      WriteBits(&stream, symbols[symbol].code, symbols[symbol].bits);
       k++;
     }
   }
 
   // Calculate size of output data.
-  *encoded_size = stream.Size();
+  *encoded_size = StreamSize(&stream);
 
   // Calculate the CRC for the compressed buffer.
   uint32_t crc32 = _hzr_crc32(encoded_start, *encoded_size - HZR_HEADER_SIZE);
 
   // Update the header.
-  stream.Reset();
-  stream.WriteBits(static_cast<uint32_t>(in_size), 32);
-  stream.WriteBits(crc32, 32);
+  Reset(&stream);
+  WriteBits(&stream, (uint32_t)in_size, 32);
+  WriteBits(&stream, crc32, 32);
 
   return HZR_OK;
 }
