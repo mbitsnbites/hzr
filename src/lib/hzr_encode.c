@@ -15,7 +15,8 @@ typedef struct {
   uint8_t* end_ptr;
   uint8_t* byte_ptr;
   int bit_pos;
-  hzr_bool write_failed;
+  uint32_t bit_cache;
+  hzr_bool write_failed;  // TODO(m): Implement buffer overflow checking!
 } WriteStream;
 
 // Initialize a bitstream.
@@ -24,18 +25,40 @@ static void InitWriteStream(WriteStream* stream, void* buf, size_t size) {
   stream->base_ptr = stream->byte_ptr;
   stream->end_ptr = ((uint8_t*)buf) + size;
   stream->bit_pos = 0;
+  stream->bit_cache = 0U;
   stream->write_failed = HZR_FALSE;
+}
+
+// Write the bit cache to the write stream if necessary.
+FORCE_INLINE static void FlushBitCache(WriteStream* stream) {
+  while (stream->bit_pos >= 8) {
+    *stream->byte_ptr = (uint8_t)stream->bit_cache;
+    stream->bit_cache >>= 8;
+    stream->bit_pos -= 8;
+    stream->byte_ptr++;
+  }
+}
+
+// Write the bit cache to the write stream - includig incomplete words.
+FORCE_INLINE static void ForceFlushBitCache(WriteStream* stream) {
+  FlushBitCache(stream);
+  if (stream->bit_pos > 0) {
+    *stream->byte_ptr =
+        (uint8_t)(stream->bit_cache & (0xff >> (8 - stream->bit_pos)));
+  }
 }
 
 // Reset the write position (rewind).
 FORCE_INLINE static void Reset(WriteStream* stream) {
   stream->byte_ptr = stream->base_ptr;
+  stream->bit_cache = 0U;
   stream->bit_pos = 0;
 }
 
 // Advance N bytes.
 FORCE_INLINE static void AdvanceBytes(WriteStream* stream, int N) {
   stream->byte_ptr += N;
+  FlushBitCache(stream);
 }
 
 FORCE_INLINE static size_t StreamSize(const WriteStream* stream) {
@@ -47,24 +70,23 @@ FORCE_INLINE static size_t StreamSize(const WriteStream* stream) {
 }
 
 // Write bits to a bitstream.
+// NOTE: All unused bits of the input argument x must be zero.
 FORCE_INLINE static void WriteBits(WriteStream* stream, uint32_t x, int bits) {
-  // Get current stream state.
-  uint8_t* buf = stream->byte_ptr;
-  int bit = stream->bit_pos;
+  int bits_to_write = hzr_min(32 - stream->bit_pos, bits);
+  stream->bit_cache |= (x << stream->bit_pos);
+  stream->bit_pos += bits_to_write;
+  bits -= bits_to_write;
+  FlushBitCache(stream);
 
-  // Append bits.
-  // TODO(m): Optimize this!
-  while (bits--) {
-    *buf = (*buf & (uint8_t)(0xffU ^ (1U << bit))) | (uint8_t)((x & 1U) << bit);
-    x >>= 1;
-    bit++;
-    buf += bit >> 3;
-    bit = bit & 7;
+  // In the very unlikely case that we didn't write all the bits in the first
+  // pass, we have to do a second pass (the caller has to write *at least*
+  // 24 bits at once for this to ever happen).
+  if (UNLIKELY(bits > 0)) {
+    x >>= bits_to_write;
+    stream->bit_cache |= (x << stream->bit_pos);
+    stream->bit_pos += bits;
+    FlushBitCache(stream);
   }
-
-  // Store new stream state.
-  stream->byte_ptr = buf;
-  stream->bit_pos = bit;
 }
 
 // Used by the encoder for building the optimal Huffman tree.
@@ -308,6 +330,9 @@ hzr_status_t hzr_encode(const void* in,
       k++;
     }
   }
+
+  // Write final bits to the stream.
+  ForceFlushBitCache(&stream);
 
   // Calculate size of output data.
   *encoded_size = StreamSize(&stream);
