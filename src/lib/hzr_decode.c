@@ -269,7 +269,7 @@ static DecodeNode* RecoverTree(DecodeTree* tree,
 hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
   // Check input parameters.
   if (!in || !decoded_size) {
-    DBREAK("Invalid input arguments.");
+    DLOG("Invalid input arguments.");
     return HZR_FAIL;
   }
 
@@ -279,7 +279,7 @@ hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
   *decoded_size = (size_t)ReadBitsChecked(&stream, 32);
   uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
   if (stream.read_failed) {
-    DBREAK("Could not read the header.");
+    DLOG("Could not read the header.");
     return HZR_FAIL;
   }
 
@@ -287,7 +287,7 @@ hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
   uint32_t actual_crc32 =
       _hzr_crc32(stream.byte_ptr, in_size - HZR_HEADER_SIZE);
   if (actual_crc32 != expected_crc32) {
-    DBREAK("CRC32 check failed.");
+    DLOG("CRC32 check failed.");
     return HZR_FAIL;
   }
 
@@ -300,7 +300,7 @@ hzr_status_t hzr_decode(const void* in,
                         size_t out_size) {
   // Check input parameters.
   if (!in || !out) {
-    DBREAK("Invalid input arguments.");
+    DLOG("Invalid input arguments.");
     return HZR_FAIL;
   }
 
@@ -314,7 +314,7 @@ hzr_status_t hzr_decode(const void* in,
   InitReadStream(&stream, in, in_size);
   AdvanceChecked(&stream, HZR_HEADER_SIZE * 8);
   if (stream.read_failed) {
-    DBREAK("Unable to skip past the header.");
+    DLOG("Unable to skip past the header.");
     return HZR_FAIL;
   }
 
@@ -323,7 +323,7 @@ hzr_status_t hzr_decode(const void* in,
   int node_count = 0;
   DecodeNode* tree_root = RecoverTree(&tree, &node_count, 0, 0, &stream);
   if (tree_root == NULL) {
-    DBREAK("Unable to decode the Huffman tree.");
+    DLOG("Unable to decode the Huffman tree.");
     return HZR_FAIL;
   }
 
@@ -353,7 +353,7 @@ hzr_status_t hzr_decode(const void* in,
       DecodeNode* node = lut_entry->node;
       while (node->symbol < 0) {
         if (UNLIKELY(stream.byte_ptr >= stream.end_ptr)) {
-          DBREAK("Input buffer ended prematurely.");
+          DLOG("Input buffer ended prematurely.");
           return HZR_FAIL;
         }
 
@@ -371,7 +371,7 @@ hzr_status_t hzr_decode(const void* in,
     if (LIKELY(symbol <= 255)) {
       // Plain copy.
       if (UNLIKELY(out_ptr >= out_end)) {
-        DBREAK("Output buffer full.");
+        DLOG("Output buffer full.");
         return HZR_FAIL;
       }
       *out_ptr++ = (uint8_t)symbol;
@@ -406,7 +406,7 @@ hzr_status_t hzr_decode(const void* in,
       }
 
       if (UNLIKELY(out_ptr + zero_count > out_end)) {
-        DBREAK("Output buffer full.");
+        DLOG("Output buffer full.");
         return HZR_FAIL;
       }
       memset(out_ptr, 0, zero_count);
@@ -425,7 +425,7 @@ hzr_status_t hzr_decode(const void* in,
       AdvanceChecked(&stream, 1);
 
       if (UNLIKELY(stream.read_failed)) {
-        DBREAK("Input buffer ended prematurely.");
+        DLOG("Input buffer ended prematurely.");
         return HZR_FAIL;
       }
     }
@@ -439,7 +439,7 @@ hzr_status_t hzr_decode(const void* in,
       }
 
       if (UNLIKELY(stream.read_failed)) {
-        DBREAK("Input buffer ended prematurely.");
+        DLOG("Input buffer ended prematurely.");
         return HZR_FAIL;
       }
     }
@@ -480,7 +480,7 @@ hzr_status_t hzr_decode(const void* in,
       }
 
       if (UNLIKELY(stream.read_failed || out_ptr + zero_count > out_end)) {
-        DBREAK("Output buffer full.");
+        DLOG("Output buffer full.");
         return HZR_FAIL;
       }
       memset(out_ptr, 0, zero_count);
@@ -490,7 +490,7 @@ hzr_status_t hzr_decode(const void* in,
 
   // TODO: Better check!
   if (UNLIKELY(!AtTheEnd(&stream))) {
-    DBREAK("Decoder did not reach the end of the input buffer.");
+    DLOG("Decoder did not reach the end of the input buffer.");
     return HZR_FAIL;
   }
 

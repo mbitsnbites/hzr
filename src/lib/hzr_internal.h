@@ -24,24 +24,10 @@
 
 // Debug macros.
 #if !defined(NDEBUG)
-#if defined(_MSC_VER)
-#include <intrin.h>
-#define DEBUG_BREAK() __debugbreak()
-#else
-#include <signal.h>
-#define DEBUG_BREAK() raise(SIGTRAP)
-#endif
 #include <stdio.h>
 #define DLOG(s) printf("%s:%d: %s\n", __FILE__, __LINE__, (s))
-#define DBREAK(s)  \
-  do {             \
-    DLOG(s);       \
-    DEBUG_BREAK(); \
-  } while (0)
 #else
-#define DEBUG_BREAK()
 #define DLOG(s)
-#define DBREAK(s)
 #endif
 
 // Min/max macros.
