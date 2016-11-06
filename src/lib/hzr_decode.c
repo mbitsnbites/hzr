@@ -16,7 +16,7 @@ typedef struct {
 } ReadStream;
 
 // Initialize a bitstream.
-static void InitReadStream(ReadStream* stream, const void* buf, int size) {
+static void InitReadStream(ReadStream* stream, const void* buf, size_t size) {
   stream->byte_ptr = (const uint8_t*)buf;
   stream->end_ptr = ((const uint8_t*)buf) + size;
   stream->bit_pos = 0;
@@ -24,7 +24,7 @@ static void InitReadStream(ReadStream* stream, const void* buf, int size) {
 
   // Pre-fill the bit cache.
   stream->bit_cache = 0U;
-  for (int i = 0; i < 4 && i < size; ++i) {
+  for (size_t i = 0; i < 4 && i < size; ++i) {
     stream->bit_cache |= ((uint32_t)stream->byte_ptr[i]) << (8 * i);
   }
 }
@@ -271,7 +271,7 @@ hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
 
   // Parse the header.
   ReadStream stream;
-  InitReadStream(&stream, in, (int)in_size);  // TODO(m): Preserve precision.
+  InitReadStream(&stream, in, in_size);
   *decoded_size = (size_t)ReadBitsChecked(&stream, 32);
   uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
   if (stream.read_failed) {
@@ -307,7 +307,7 @@ hzr_status_t hzr_decode(const void* in,
 
   // Skip the header.
   ReadStream stream;
-  InitReadStream(&stream, in, (int)in_size);  // TODO(m): Preserve precision.
+  InitReadStream(&stream, in, in_size);
   AdvanceChecked(&stream, HZR_HEADER_SIZE * 8);
   if (stream.read_failed) {
     DBREAK("Unable to skip past the header.");
@@ -373,26 +373,26 @@ hzr_status_t hzr_decode(const void* in,
       *out_ptr++ = (uint8_t)symbol;
     } else {
       // Symbols >= 256 are RLE tokens.
-      int zero_count;
+      size_t zero_count;
       switch (symbol) {
         case kSymTwoZeros: {
           zero_count = 2;
           break;
         }
         case kSymUpTo6Zeros: {
-          zero_count = ((int)ReadBits(&stream, 2)) + 3;
+          zero_count = ((size_t)ReadBits(&stream, 2)) + 3;
           break;
         }
         case kSymUpTo22Zeros: {
-          zero_count = ((int)ReadBits(&stream, 4)) + 7;
+          zero_count = ((size_t)ReadBits(&stream, 4)) + 7;
           break;
         }
         case kSymUpTo278Zeros: {
-          zero_count = ((int)ReadBits(&stream, 8)) + 23;
+          zero_count = ((size_t)ReadBits(&stream, 8)) + 23;
           break;
         }
         case kSymUpTo16662Zeros: {
-          zero_count = ((int)ReadBits(&stream, 14)) + 279;
+          zero_count = ((size_t)ReadBits(&stream, 14)) + 279;
           break;
         }
         default: {
@@ -405,7 +405,7 @@ hzr_status_t hzr_decode(const void* in,
         DBREAK("Output buffer full.");
         return HZR_FAIL;
       }
-      memset(out_ptr, 0, (size_t)zero_count);
+      memset(out_ptr, 0, zero_count);
       out_ptr += zero_count;
     }
   }
@@ -447,26 +447,26 @@ hzr_status_t hzr_decode(const void* in,
       *out_ptr++ = (uint8_t)symbol;
     } else {
       // Symbols >= 256 are RLE tokens.
-      int zero_count;
+      size_t zero_count;
       switch (symbol) {
         case kSymTwoZeros: {
           zero_count = 2;
           break;
         }
         case kSymUpTo6Zeros: {
-          zero_count = ((int)ReadBitsChecked(&stream, 2)) + 3;
+          zero_count = ((size_t)ReadBitsChecked(&stream, 2)) + 3;
           break;
         }
         case kSymUpTo22Zeros: {
-          zero_count = ((int)ReadBitsChecked(&stream, 4)) + 7;
+          zero_count = ((size_t)ReadBitsChecked(&stream, 4)) + 7;
           break;
         }
         case kSymUpTo278Zeros: {
-          zero_count = ((int)ReadBitsChecked(&stream, 8)) + 23;
+          zero_count = ((size_t)ReadBitsChecked(&stream, 8)) + 23;
           break;
         }
         case kSymUpTo16662Zeros: {
-          zero_count = ((int)ReadBitsChecked(&stream, 14)) + 279;
+          zero_count = ((size_t)ReadBitsChecked(&stream, 14)) + 279;
           break;
         }
         default: {
@@ -479,7 +479,7 @@ hzr_status_t hzr_decode(const void* in,
         DBREAK("Output buffer full.");
         return HZR_FAIL;
       }
-      memset(out_ptr, 0, (size_t)zero_count);
+      memset(out_ptr, 0, zero_count);
       out_ptr += zero_count;
     }
   }
