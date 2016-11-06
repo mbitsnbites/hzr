@@ -32,6 +32,10 @@ static void InitWriteStream(WriteStream* stream, void* buf, size_t size) {
 // Write the bit cache to the write stream if necessary.
 FORCE_INLINE static void FlushBitCache(WriteStream* stream) {
   while (stream->bit_pos >= 8) {
+    if (UNLIKELY(stream->byte_ptr >= stream->end_ptr)) {
+      stream->write_failed = HZR_TRUE;
+      return;
+    }
     *stream->byte_ptr = (uint8_t)stream->bit_cache;
     stream->bit_cache >>= 8;
     stream->bit_pos -= 8;
@@ -46,19 +50,6 @@ FORCE_INLINE static void ForceFlushBitCache(WriteStream* stream) {
     *stream->byte_ptr =
         (uint8_t)(stream->bit_cache & (0xff >> (8 - stream->bit_pos)));
   }
-}
-
-// Reset the write position (rewind).
-FORCE_INLINE static void Reset(WriteStream* stream) {
-  stream->byte_ptr = stream->base_ptr;
-  stream->bit_cache = 0U;
-  stream->bit_pos = 0;
-}
-
-// Advance N bytes.
-FORCE_INLINE static void AdvanceBytes(WriteStream* stream, int N) {
-  stream->byte_ptr += N;
-  FlushBitCache(stream);
 }
 
 FORCE_INLINE static size_t StreamSize(const WriteStream* stream) {
@@ -263,21 +254,23 @@ hzr_status_t hzr_encode(const void* in,
                         size_t out_size,
                         size_t* encoded_size) {
   // Check input arguments.
-  if (!in || !out || !encoded_size) {
+  if (UNLIKELY(!in || !out || !encoded_size)) {
+    DLOG("Invalid input arguments.");
+    return HZR_FAIL;
+  }
+
+  // Check that there is enought space in the output buffer for the header.
+  if (UNLIKELY(out_size < HZR_HEADER_SIZE)) {
+    DLOG("The output buffer is too small.");
     return HZR_FAIL;
   }
 
   const uint8_t* in_data = (const uint8_t*)in;
 
   // Initialize the output stream.
-  // TODO(m): Keep track of the output size!
-  (void)out_size;
   WriteStream stream;
-  InitWriteStream(&stream, out, in_size);
-
-  // Make room for the header.
-  AdvanceBytes(&stream, HZR_HEADER_SIZE);
-  const uint8_t* encoded_start = stream.byte_ptr;
+  uint8_t* encoded_start = ((uint8_t*)out) + HZR_HEADER_SIZE;
+  InitWriteStream(&stream, encoded_start, out_size - HZR_HEADER_SIZE);
 
   // Calculate the histogram for input data.
   SymbolInfo symbols[kNumSymbols];
@@ -285,6 +278,10 @@ hzr_status_t hzr_encode(const void* in,
 
   // Build the Huffman tree, and write it to the output stream.
   MakeTree(symbols, &stream);
+  if (UNLIKELY(stream.write_failed)) {
+    DLOG("Output buffer is full.");
+    return HZR_FAIL;
+  }
 
   // Encode the input stream.
   for (size_t k = 0; k < in_size;) {
@@ -329,21 +326,33 @@ hzr_status_t hzr_encode(const void* in,
       WriteBits(&stream, symbols[symbol].code, symbols[symbol].bits);
       k++;
     }
+
+    if (UNLIKELY(stream.write_failed)) {
+      DLOG("Output buffer is full.");
+      return HZR_FAIL;
+    }
   }
 
   // Write final bits to the stream.
   ForceFlushBitCache(&stream);
+  if (UNLIKELY(stream.write_failed)) {
+    DLOG("Output buffer is full.");
+    return HZR_FAIL;
+  }
 
-  // Calculate size of output data.
-  *encoded_size = StreamSize(&stream);
+  // Calculate the size of the output data.
+  *encoded_size = StreamSize(&stream) + HZR_HEADER_SIZE;
 
   // Calculate the CRC for the compressed buffer.
   uint32_t crc32 = _hzr_crc32(encoded_start, *encoded_size - HZR_HEADER_SIZE);
 
-  // Update the header.
-  Reset(&stream);
-  WriteBits(&stream, (uint32_t)in_size, 32);
-  WriteBits(&stream, crc32, 32);
+  // Write the header.
+  {
+    WriteStream hdr_stream;
+    InitWriteStream(&hdr_stream, out, out_size);
+    WriteBits(&hdr_stream, (uint32_t)in_size, 32);
+    WriteBits(&hdr_stream, crc32, 32);
+  }
 
   return HZR_OK;
 }
