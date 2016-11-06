@@ -11,6 +11,10 @@
 
 #include <libhzr.h>
 
+#ifdef HZR_HAS_ZLIB
+#include <zlib.h>
+#endif // HZR_HAS_ZLIB
+
 static double get_time() {
 #if defined(_WIN32)
   static double s_period = 0.0;
@@ -41,6 +45,7 @@ static int perform_test(const unsigned char* uncompressed,
   double t0, dt;
 
   // Allocate a buffer for the compressed data.
+  // NOTE: Must support both HZR and zlib compression!
   const size_t max_compressed_size = hzr_max_compressed_size(uncompressed_size);
   unsigned char *compressed = (unsigned char *)malloc(max_compressed_size);
   if (!compressed) {
@@ -102,6 +107,50 @@ static int perform_test(const unsigned char* uncompressed,
   }
   dt = get_time() - t0;
   print_results("Decode", dt, uncompressed_size);
+
+#ifdef HZR_HAS_ZLIB
+  {
+    t0 = get_time();
+    for (int i = 0; i < NUM_BENCHMARK_ITERATIONS; ++i) {
+      z_stream strm;
+      strm.zalloc = Z_NULL;
+      strm.zfree = Z_NULL;
+      strm.opaque = Z_NULL;
+      const int level = 5;
+      if (deflateInit(&strm, level) == Z_OK) {
+        strm.avail_in = uncompressed_size;
+        strm.next_in = (Bytef*)uncompressed;
+        strm.avail_out = max_compressed_size;
+        strm.next_out = (Bytef*)compressed;
+        deflate(&strm, Z_FINISH);
+        compressed_size = max_compressed_size - strm.avail_out;
+      }
+      deflateEnd(&strm);
+    }
+    dt = get_time() - t0;
+    print_results("zlib encode", dt, uncompressed_size);
+
+    t0 = get_time();
+    for (int i = 0; i < NUM_BENCHMARK_ITERATIONS; ++i) {
+      z_stream strm;
+      strm.zalloc = Z_NULL;
+      strm.zfree = Z_NULL;
+      strm.opaque = Z_NULL;
+      strm.avail_in = 0;
+      strm.next_in = Z_NULL;
+      if (inflateInit(&strm) == Z_OK) {
+        strm.avail_in = compressed_size;
+        strm.next_in = (Bytef*)compressed;
+        strm.avail_out = uncompressed_size;
+        strm.next_out = (Bytef*)uncompressed2;
+        inflate(&strm, Z_FINISH);
+      }
+      (void)inflateEnd(&strm);
+    }
+    dt = get_time() - t0;
+    print_results("zlib decode", dt, uncompressed_size);
+  }
+#endif // HZR_HAS_ZLIB
 
   t0 = get_time();
   for (int i = 0; i < NUM_BENCHMARK_ITERATIONS; ++i) {
