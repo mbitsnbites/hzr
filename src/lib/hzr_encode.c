@@ -78,7 +78,8 @@ typedef struct {
 
 typedef struct EncodeNode_struct EncodeNode;
 struct EncodeNode_struct {
-  EncodeNode *child_a, *child_b;
+  EncodeNode* child_a;
+  EncodeNode* child_b;
   int count;
   int symbol;
 };

@@ -31,7 +31,8 @@ static void InitReadStream(ReadStream* stream, const void* buf, size_t size) {
 
 FORCE_INLINE static void UpdateBitCache(ReadStream* stream) {
   while (stream->bit_pos >= 8) {
-    stream->bit_cache = (stream->bit_cache >> 8) | (((uint32_t)stream->byte_ptr[4]) << 24);
+    stream->bit_cache =
+        (stream->bit_cache >> 8) | (((uint32_t)stream->byte_ptr[4]) << 24);
     stream->bit_pos -= 8;
     stream->byte_ptr++;
   }
@@ -87,7 +88,8 @@ static const uint32_t s_bits_mask[33] = {
 FORCE_INLINE static uint32_t ReadBits(ReadStream* stream, int bits) {
   // Read up to 32 bits at once.
   int bits_to_read = hzr_min(32 - stream->bit_pos, bits);
-  uint32_t x = (stream->bit_cache >> stream->bit_pos) & s_bits_mask[bits_to_read];
+  uint32_t x =
+      (stream->bit_cache >> stream->bit_pos) & s_bits_mask[bits_to_read];
   stream->bit_pos += bits_to_read;
   bits -= bits_to_read;
   UpdateBitCache(stream);
@@ -117,7 +119,8 @@ FORCE_INLINE static uint32_t ReadBitsChecked(ReadStream* stream, int bits) {
 
   // Ok, read up to 32 bits at once.
   int bits_to_read = hzr_min(32 - stream->bit_pos, bits);
-  uint32_t x = (stream->bit_cache >> stream->bit_pos) & s_bits_mask[bits_to_read];
+  uint32_t x =
+      (stream->bit_cache >> stream->bit_pos) & s_bits_mask[bits_to_read];
   stream->bit_pos += bits_to_read;
   bits -= bits_to_read;
   UpdateBitCacheSafe(stream);
@@ -174,7 +177,8 @@ FORCE_INLINE static hzr_bool AtTheEnd(const ReadStream* stream) {
 
 typedef struct DecodeNode_struct DecodeNode;
 struct DecodeNode_struct {
-  DecodeNode *child_a, *child_b;
+  DecodeNode* child_a;
+  DecodeNode* child_b;
   int symbol;
 };
 
