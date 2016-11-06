@@ -1,13 +1,10 @@
 #include "libhzr.h"
 
 #include <stdint.h>
+#include <string.h>
 
 #include "hzr_crc32c.h"
 #include "hzr_internal.h"
-
-// The maximum size of the tree representation (there are two additional bits
-// per leaf node, representing the branches in the tree).
-#define kMaxTreeDataSize (((2 + kSymbolSize) * kNumSymbols + 7) / 8)
 
 // A helper for decoding binary data.
 typedef struct {
@@ -231,11 +228,38 @@ static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
   }
 }
 
+static hzr_status_t PlainCopy(const void* in,
+                              size_t in_size,
+                              void* out,
+                              size_t out_size,
+                              size_t* encoded_size) {
+  // Check that the output buffer is large enough.
+  if (UNLIKELY(out_size < (in_size + HZR_HEADER_SIZE))) {
+    DLOG("Output buffer too small for a plain copy.");
+    return HZR_FAIL;
+  }
+
+  // Copy the input buffer to the output buffer.
+  memcpy(((uint8_t*)out) + HZR_HEADER_SIZE, in, in_size);
+
+  // Calculate the CRC for the buffer.
+  uint32_t crc32 = _hzr_crc32(in, in_size);
+
+  // Write the header.
+  WriteStream hdr_stream;
+  InitWriteStream(&hdr_stream, out, out_size);
+  WriteBits(&hdr_stream, (uint32_t)in_size, 32);
+  WriteBits(&hdr_stream, crc32, 32);
+  WriteBits(&hdr_stream, HZR_ENCODING_COPY, 8);
+
+  // Calculate the encoded size.
+  *encoded_size = in_size + HZR_HEADER_SIZE;
+
+  return HZR_OK;
+}
+
 size_t hzr_max_compressed_size(size_t uncompressed_size) {
-  // TODO(m): Find out what the ACTUAL limit is. This should be on the safe
-  // side.
-  return uncompressed_size + ((uncompressed_size + 255) >> 8) +
-         kMaxTreeDataSize + HZR_HEADER_SIZE;
+  return uncompressed_size + HZR_HEADER_SIZE;
 }
 
 hzr_status_t hzr_encode(const void* in,
@@ -269,8 +293,8 @@ hzr_status_t hzr_encode(const void* in,
   // Build the Huffman tree, and write it to the output stream.
   MakeTree(symbols, &stream);
   if (UNLIKELY(stream.write_failed)) {
-    DLOG("Output buffer is full.");
-    return HZR_FAIL;
+    DLOG("Output buffer is full - reverting to plain copy.");
+    return PlainCopy(in, in_size, out, out_size, encoded_size);
   }
 
   // Encode the input stream.
@@ -318,16 +342,16 @@ hzr_status_t hzr_encode(const void* in,
     }
 
     if (UNLIKELY(stream.write_failed)) {
-      DLOG("Output buffer is full.");
-      return HZR_FAIL;
+      DLOG("Output buffer is full - reverting to plain copy.");
+      return PlainCopy(in, in_size, out, out_size, encoded_size);
     }
   }
 
   // Write final bits to the stream.
   ForceFlushBitCache(&stream);
   if (UNLIKELY(stream.write_failed)) {
-    DLOG("Output buffer is full.");
-    return HZR_FAIL;
+    DLOG("Output buffer is full - reverting to plain copy.");
+    return PlainCopy(in, in_size, out, out_size, encoded_size);
   }
 
   // Calculate the size of the encoded output data.
@@ -345,6 +369,7 @@ hzr_status_t hzr_encode(const void* in,
     InitWriteStream(&hdr_stream, out, out_size);
     WriteBits(&hdr_stream, (uint32_t)in_size, 32);
     WriteBits(&hdr_stream, crc32, 32);
+    WriteBits(&hdr_stream, HZR_ENCODING_HUFF_RLE, 8);
   }
 
   return HZR_OK;

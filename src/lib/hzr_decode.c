@@ -278,6 +278,7 @@ hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
   InitReadStream(&stream, in, in_size);
   *decoded_size = (size_t)ReadBitsChecked(&stream, 32);
   uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
+  (void)ReadBitsChecked(&stream, 8);  // Skip encoding mode.
   if (stream.read_failed) {
     DLOG("Could not read the header.");
     return HZR_FAIL;
@@ -309,12 +310,31 @@ hzr_status_t hzr_decode(const void* in,
     return HZR_OK;
   }
 
-  // Skip the header.
+  // Read the header.
   ReadStream stream;
   InitReadStream(&stream, in, in_size);
-  AdvanceChecked(&stream, HZR_HEADER_SIZE * 8);
+  (void)ReadBitsChecked(&stream, 32); // Skip output size (we could use it).
+  (void)ReadBitsChecked(&stream, 32);  // Skip CRC32.
+  uint8_t encoding_mode = (uint8_t)ReadBitsChecked(&stream, 8);
   if (stream.read_failed) {
-    DLOG("Unable to skip past the header.");
+    DLOG("Unable to read the header.");
+    return HZR_FAIL;
+  }
+
+  // Plain copy?
+  if (encoding_mode == HZR_ENCODING_COPY) {
+    size_t copy_size = in_size - HZR_HEADER_SIZE;
+    if (out_size < copy_size) {
+      DLOG("Output buffer too small.");
+      return HZR_FAIL;
+    }
+    memcpy(out, stream.byte_ptr, copy_size);
+    return HZR_OK;
+  }
+
+  // Check that the encoding mode is valid.
+  if (UNLIKELY(encoding_mode != HZR_ENCODING_HUFF_RLE)) {
+    DLOG("Invalid encoding mode.");
     return HZR_FAIL;
   }
 
