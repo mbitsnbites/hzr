@@ -78,3 +78,9 @@ uint32_t random_get_u32() {
 
   return y;
 }
+
+// Obtain an 8-bit random number
+uint8_t random_get_u8() {
+  uint32_t r32 = random_get_u32();
+  return (uint8_t)((r32 >> 24) ^ (r32 >> 16) ^ (r32 >> 8) ^ r32);
+}
