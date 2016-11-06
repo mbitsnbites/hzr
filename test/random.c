@@ -2,6 +2,8 @@
 
 #include "random.h"
 
+#include <math.h>
+
 // Define MT19937 constants (32-bit RNG)
 
 // Assumes W = 32 (omitting this)
@@ -45,6 +47,28 @@ static void Twist() {
   index = 0;
 }
 
+static double Gaussian(const double mean, const double stdDev) {
+  static int hasSpare = 0;
+  static double spare;
+
+  if (hasSpare) {
+    hasSpare = 0;
+    return mean + stdDev * spare;
+  }
+  hasSpare = 1;
+
+  double u, v, s;
+  do {
+    u = ((double)random_get_u32() / 4294967296.0) * 2.0 - 1.0;
+    v = ((double)random_get_u32() / 4294967296.0) * 2.0 - 1.0;
+    s = u * u + v * v;
+  } while ((s >= 1.0) || (s == 0.0));
+
+  s = sqrt(-2.0 * log(s) / s);
+  spare = v * s;
+  return mean + stdDev * u * s;
+}
+
 // Re-init with a given seed
 void random_init(const uint32_t seed) {
   uint32_t i;
@@ -83,4 +107,15 @@ uint32_t random_get_u32() {
 uint8_t random_get_u8() {
   uint32_t r32 = random_get_u32();
   return (uint8_t)((r32 >> 24) ^ (r32 >> 16) ^ (r32 >> 8) ^ r32);
+}
+
+uint8_t gaussian_get_u8(uint8_t std_dev) {
+  double g = Gaussian(0.0, (double)std_dev);
+  if (g < -128.0 || g > 127.0) {
+    g = 0.0;
+  }
+  if (g < 0.0) {
+    g = 255.0 + g;
+  }
+  return (uint8_t)(g + 0.5);
 }

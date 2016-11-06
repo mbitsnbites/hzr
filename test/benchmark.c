@@ -193,17 +193,17 @@ static int test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
   random_init(1234);
   memset(uncompressed, 0, uncompressed_size);
   for (size_t i = uncompressed_size / 2; i < uncompressed_size; ++i) {
-    uncompressed[i] = random_get_u8();
+    uncompressed[i] = gaussian_get_u8(8);
   }
-  return test_data("rnd + zeros", uncompressed, uncompressed_size);
+  return test_data("gaussian(8) + zeros", uncompressed, uncompressed_size);
 }
 
 static int test_data_4(unsigned char *uncompressed, size_t uncompressed_size) {
   random_init(1234);
   for (size_t i = 0; i < uncompressed_size; ++i) {
-    uncompressed[i] = random_get_u8() >> 4;
+    uncompressed[i] = gaussian_get_u8(2);
   }
-  return test_data("rnd 4-bit", uncompressed, uncompressed_size);
+  return test_data("gaussian(2)", uncompressed, uncompressed_size);
 }
 
 static int test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {

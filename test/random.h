@@ -12,5 +12,8 @@ uint32_t random_get_u32();
 // Obtain an 8-bit random number.
 uint8_t random_get_u8();
 
+// Obtain an 8-bit normally distributed random number.
+uint8_t gaussian_get_u8(uint8_t std_dev);
+
 #endif // RANDOM_H_
 
