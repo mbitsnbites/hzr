@@ -15,6 +15,8 @@
 #include <zlib.h>
 #endif // HZR_HAS_ZLIB
 
+#include "random.h"
+
 static double get_time() {
 #if defined(_WIN32)
   static double s_period = 0.0;
@@ -207,6 +209,8 @@ static int test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {
 }
 
 int main() {
+  random_init(1234);
+
   // Allocate memory for the uncompressed data.
   const size_t max_uncompressed_size = 131072;
   unsigned char *uncompressed = (unsigned char *)malloc(max_uncompressed_size);

@@ -17,7 +17,8 @@ set(demo_sources
     demo.c)
 
 set(benchmark_sources
-    benchmark.c)
+    benchmark.c
+    random.c)
 
 add_executable(demo ${demo_sources})
 target_link_libraries(demo hzr)
