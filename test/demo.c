@@ -4,7 +4,8 @@
 
 #include <libhzr.h>
 
-int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
+static int perform_test(const unsigned char* uncompressed,
+                        size_t uncompressed_size) {
   // Compress the data.
   const size_t max_compressed_size = hzr_max_compressed_size(uncompressed_size);
   printf("  - Max compressed size: %ld\n", max_compressed_size);
@@ -21,7 +22,7 @@ int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
     return 0;
   }
   printf("  - Compressed size: %ld (%f:1)\n", compressed_size,
-         (float)uncompressed_size / (float)compressed_size);
+         (double)uncompressed_size / (double)compressed_size);
 
   // Decompress the data.
   size_t uncompressed_size2;
@@ -64,8 +65,9 @@ int perform_test(const unsigned char *uncompressed, size_t uncompressed_size) {
   return 1;
 }
 
-int test_data(const char *name, const unsigned char *uncompressed,
-               size_t uncompressed_size) {
+static int test_data(const char* name,
+                     const unsigned char* uncompressed,
+                     size_t uncompressed_size) {
   printf("TEST: %s (%ld bytes)\n", name, uncompressed_size);
   int result = perform_test(uncompressed, uncompressed_size);
   if (result) {
@@ -76,19 +78,19 @@ int test_data(const char *name, const unsigned char *uncompressed,
   return result;
 }
 
-int test_data_1(unsigned char *uncompressed, size_t uncompressed_size) {
+static int test_data_1(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 0, uncompressed_size);
   return test_data("good case (all zeros)", uncompressed, uncompressed_size);
 }
 
-int test_data_2(unsigned char *uncompressed, size_t uncompressed_size) {
+static int test_data_2(unsigned char *uncompressed, size_t uncompressed_size) {
   for (size_t i = 0; i < uncompressed_size; ++i) {
     uncompressed[i] = i & 255;
   }
   return test_data("bad case", uncompressed, uncompressed_size);
 }
 
-int test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
+static int test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 0, uncompressed_size);
   for (size_t i = uncompressed_size / 2; i < uncompressed_size; ++i) {
     uncompressed[i] = i & 255;
@@ -96,14 +98,14 @@ int test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
   return test_data("test3", uncompressed, uncompressed_size);
 }
 
-int test_data_4(unsigned char *uncompressed, size_t uncompressed_size) {
+static int test_data_4(unsigned char *uncompressed, size_t uncompressed_size) {
   for (size_t i = 0; i < uncompressed_size; ++i) {
     uncompressed[i] = i & 15;
   }
   return test_data("test4", uncompressed, uncompressed_size);
 }
 
-int test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {
+static int test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {
   memset(uncompressed, 1, uncompressed_size);
   return test_data("all ones", uncompressed, uncompressed_size);
 }
