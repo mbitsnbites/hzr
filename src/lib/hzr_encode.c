@@ -11,9 +11,8 @@
 
 // A helper for decoding binary data.
 typedef struct {
-  uint8_t* base_ptr;
-  uint8_t* end_ptr;
   uint8_t* byte_ptr;
+  uint8_t* end_ptr;
   int bit_pos;
   uint32_t bit_cache;
   hzr_bool write_failed;  // TODO(m): Implement buffer overflow checking!
@@ -22,7 +21,6 @@ typedef struct {
 // Initialize a bitstream.
 static void InitWriteStream(WriteStream* stream, void* buf, size_t size) {
   stream->byte_ptr = (uint8_t*)buf;
-  stream->base_ptr = stream->byte_ptr;
   stream->end_ptr = ((uint8_t*)buf) + size;
   stream->bit_pos = 0;
   stream->bit_cache = 0U;
@@ -50,14 +48,6 @@ FORCE_INLINE static void ForceFlushBitCache(WriteStream* stream) {
     *stream->byte_ptr =
         (uint8_t)(stream->bit_cache & (0xff >> (8 - stream->bit_pos)));
   }
-}
-
-FORCE_INLINE static size_t StreamSize(const WriteStream* stream) {
-  size_t total_bytes = (size_t)(stream->byte_ptr - stream->base_ptr);
-  if (stream->bit_pos > 0) {
-    ++total_bytes;
-  }
-  return total_bytes;
 }
 
 // Write bits to a bitstream.
@@ -340,8 +330,11 @@ hzr_status_t hzr_encode(const void* in,
     return HZR_FAIL;
   }
 
-  // Calculate the size of the output data.
-  *encoded_size = StreamSize(&stream) + HZR_HEADER_SIZE;
+  // Calculate the size of the encoded output data.
+  *encoded_size = (size_t)(stream.byte_ptr - (uint8_t*)out);
+  if (stream.bit_pos > 0) {
+    *encoded_size = *encoded_size + 1;
+  }
 
   // Calculate the CRC for the compressed buffer.
   uint32_t crc32 = _hzr_crc32(encoded_start, *encoded_size - HZR_HEADER_SIZE);
