@@ -41,7 +41,13 @@ typedef enum { HZR_FALSE = 0, HZR_TRUE = 1 } hzr_bool;
 // The header format is:
 //  0: size of the decoded data (32 bits).
 //  4: CRC32 of the encoded data (32 bits).
-#define HZR_HEADER_SIZE 8
+//  8: Encoding mode:
+//     0 = Plain copy (no compression)
+//     1 = Huffman + RLE
+#define HZR_HEADER_SIZE 9
+
+#define HZR_ENCODING_COPY     0
+#define HZR_ENCODING_HUFF_RLE 1
 
 // A symbol is a 9-bit unsigned number.
 typedef uint16_t Symbol;
