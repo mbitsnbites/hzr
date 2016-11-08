@@ -1,7 +1,9 @@
 #include "hzr_crc32c.h"
 
-#ifdef HZR_ARCH_X86
+#if defined(HZR_ARCH_X86)
 #include "hzr_crc32c_sse4.h"
+#elif defined(HZR_ARCH_ARM)
+#include "hzr_crc32c_armv8.h"
 #endif
 
 /* CRC32C table (polynomial = 0x82f63b78). */
@@ -60,10 +62,14 @@ static uint32_t _hzr_crc32c_fallback(const void* data, size_t length) {
 }
 
 uint32_t _hzr_crc32(const void* data, size_t length) {
-#ifdef HZR_ARCH_X86
+#if defined(HZR_ARCH_X86)
   if (_hzr_can_use_sse4_2()) {
     return _hzr_crc32c_sse4_2(data, length);
   }
-#endif /* HZR_ARCH_X86 */
+#elif defined(HZR_ARCH_ARM)
+  if (_hzr_can_use_armv8crc()) {
+    return _hzr_crc32c_armv8crc(data, length);
+  }
+#endif
   return _hzr_crc32c_fallback(data, length);
 }

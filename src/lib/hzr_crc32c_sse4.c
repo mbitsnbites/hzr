@@ -1,5 +1,7 @@
 #include "hzr_crc32c_sse4.h"
 
+#include "hzr_internal.h"
+
 /* Check if we are compiling with SSE 4.2 support. */
 #if defined(__SSE4_2__) || (defined(_M_IX86_FP) && (_M_IX86_FP >= 2))
 
