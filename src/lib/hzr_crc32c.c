@@ -6,7 +6,7 @@
 #include "hzr_crc32c_armv8.h"
 #endif
 
-/* CRC32C table (polynomial = 0x82f63b78). */
+// CRC32C table (polynomial = 0x82f63b78).
 static const uint32_t crc32_lut[256] = {
     0x00000000, 0xf26b8303, 0xe13b70f7, 0x1350f3f4, 0xc79a971f, 0x35f1141c,
     0x26a1e7e8, 0xd4ca64eb, 0x8ad958cf, 0x78b2dbcc, 0x6be22838, 0x9989ab3b,
