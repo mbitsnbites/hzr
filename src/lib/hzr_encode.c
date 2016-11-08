@@ -228,6 +228,28 @@ static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
   }
 }
 
+static hzr_bool OnlySingleCode(const SymbolInfo* const symbols) {
+  int used_codes = 0;
+  hzr_bool has_zeros = 0;
+  int num_nonzero_codes = 0;
+  for (int k = 0; k < kNumSymbols; ++k) {
+    if (symbols[k].count > 0) {
+      Symbol x = symbols[k].symbol;
+      if ((x == 0) || (x >= 256)) {
+        has_zeros = 1;
+      } else {
+        ++num_nonzero_codes;
+      }
+      used_codes = num_nonzero_codes + has_zeros;
+      if (LIKELY(used_codes > 1)) {
+        break;
+      }
+    }
+  }
+
+  return (used_codes == 1) ? HZR_TRUE : HZR_FALSE;
+}
+
 static hzr_status_t PlainCopy(const void* in,
                               size_t in_size,
                               void* out,
@@ -254,6 +276,36 @@ static hzr_status_t PlainCopy(const void* in,
 
   // Calculate the encoded size.
   *encoded_size = in_size + HZR_HEADER_SIZE;
+
+  return HZR_OK;
+}
+
+static hzr_status_t EncodeFill(const void* in,
+                               size_t in_size,
+                               void* out,
+                               size_t out_size,
+                               size_t* encoded_size) {
+  // Check that the output buffer is large enough.
+  if (UNLIKELY(out_size < (HZR_HEADER_SIZE + 1))) {
+    DLOG("Output buffer too small for fill encoding.");
+    return HZR_FAIL;
+  }
+
+  // Calculate the CRC for the buffer.
+  uint32_t crc32 = _hzr_crc32(in, 1);
+
+  // Write the header.
+  WriteStream hdr_stream;
+  InitWriteStream(&hdr_stream, out, out_size);
+  WriteBits(&hdr_stream, (uint32_t)in_size, 32);
+  WriteBits(&hdr_stream, crc32, 32);
+  WriteBits(&hdr_stream, HZR_ENCODING_FILL, 8);
+
+  // Write the fill code.
+  WriteBits(&hdr_stream, (uint32_t)(*(uint8_t*)in), 8);
+
+  // Calculate the encoded size.
+  *encoded_size = HZR_HEADER_SIZE + 1;
 
   return HZR_OK;
 }
@@ -290,10 +342,14 @@ hzr_status_t hzr_encode(const void* in,
   SymbolInfo symbols[kNumSymbols];
   Histogram(in_data, symbols, in_size);
 
+  // Check if we have a single symbol.
+  if (OnlySingleCode(symbols)) {
+    return EncodeFill(in, in_size, out, out_size, encoded_size);
+  }
+
   // Build the Huffman tree, and write it to the output stream.
   MakeTree(symbols, &stream);
   if (UNLIKELY(stream.write_failed)) {
-    DLOG("Output buffer is full - reverting to plain copy.");
     return PlainCopy(in, in_size, out, out_size, encoded_size);
   }
 
@@ -342,7 +398,6 @@ hzr_status_t hzr_encode(const void* in,
     }
 
     if (UNLIKELY(stream.write_failed)) {
-      DLOG("Output buffer is full - reverting to plain copy.");
       return PlainCopy(in, in_size, out, out_size, encoded_size);
     }
   }
@@ -350,7 +405,6 @@ hzr_status_t hzr_encode(const void* in,
   // Write final bits to the stream.
   ForceFlushBitCache(&stream);
   if (UNLIKELY(stream.write_failed)) {
-    DLOG("Output buffer is full - reverting to plain copy.");
     return PlainCopy(in, in_size, out, out_size, encoded_size);
   }
 

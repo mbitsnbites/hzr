@@ -278,9 +278,13 @@ hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
   InitReadStream(&stream, in, in_size);
   *decoded_size = (size_t)ReadBitsChecked(&stream, 32);
   uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
-  (void)ReadBitsChecked(&stream, 8);  // Skip encoding mode.
+  uint8_t encoding_mode = (uint8_t)ReadBitsChecked(&stream, 8);
   if (stream.read_failed) {
     DLOG("Could not read the header.");
+    return HZR_FAIL;
+  }
+  if (encoding_mode > HZR_ENCODING_LAST) {
+    DLOG("Unsupported encoding.");
     return HZR_FAIL;
   }
 
@@ -313,11 +317,15 @@ hzr_status_t hzr_decode(const void* in,
   // Read the header.
   ReadStream stream;
   InitReadStream(&stream, in, in_size);
-  (void)ReadBitsChecked(&stream, 32); // Skip output size (we could use it).
-  (void)ReadBitsChecked(&stream, 32);  // Skip CRC32.
+  size_t actual_out_size = (size_t)ReadBitsChecked(&stream, 32);
+  (void)ReadBitsChecked(&stream, 32); // Skip CRC32.
   uint8_t encoding_mode = (uint8_t)ReadBitsChecked(&stream, 8);
   if (stream.read_failed) {
     DLOG("Unable to read the header.");
+    return HZR_FAIL;
+  }
+  if (out_size < actual_out_size) {
+    DLOG("Insufficient space in the output buffer.");
     return HZR_FAIL;
   }
 
@@ -329,6 +337,17 @@ hzr_status_t hzr_decode(const void* in,
       return HZR_FAIL;
     }
     memcpy(out, stream.byte_ptr, copy_size);
+    return HZR_OK;
+  }
+
+  // Fill?
+  if (encoding_mode == HZR_ENCODING_FILL) {
+    uint8_t fill_value = (uint8_t)ReadBitsChecked(&stream, 8);
+    if (stream.read_failed) {
+      DLOG("Premature end of the input stream.");
+      return HZR_FAIL;
+    }
+    memset(out, (int)fill_value, actual_out_size);
     return HZR_OK;
   }
 
