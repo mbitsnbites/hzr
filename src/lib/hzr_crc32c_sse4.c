@@ -1,6 +1,6 @@
 #include "hzr_crc32c_sse4.h"
 
-/* Check if we are compiling with SSE 4.2 support. */
+// Check if we are compiling with SSE 4.2 support.
 #if defined(__SSE4_2__) || (defined(_M_IX86_FP) && (_M_IX86_FP >= 2))
 
 #include <nmmintrin.h>
@@ -15,7 +15,7 @@
 #define CPUID_VENDOR_ID 0x00000000
 #define CPUID_FEATURES 0x00000001
 
-/* A fairly portable x86 cpuid() implementation. */
+// A fairly portable x86 cpuid() implementation.
 static void cpuid(unsigned func,
                   unsigned* a,
                   unsigned* b,
@@ -36,24 +36,24 @@ static void cpuid(unsigned func,
 #endif
 }
 
-/* Check if we can use SSE 4.2, at runtime. */
-int _hzr_can_use_sse4_2(void) {
+// Check if we can use SSE 4.2, at runtime.
+hzr_bool _hzr_can_use_sse4_2(void) {
   unsigned a, b, c, d;
   cpuid(CPUID_VENDOR_ID, &a, &b, &c, &d);
   if (a >= CPUID_FEATURES) {
     cpuid(CPUID_FEATURES, &a, &b, &c, &d);
-    return (c & (1 << 20)) != 0;
+    return (c & (1U << 20)) ? HZR_TRUE : HZR_FALSE;
   }
-  return 0;
+  return HZR_FALSE;
 }
 
-/* SSE 4.2 optimized CRC32 implementation. */
+// SSE 4.2 optimized CRC32 implementation.
 uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   const size_t ALIGN_TO_BYTES = 8;
 
   uint32_t crc = ~0U;
 
-  /* Align... */
+  // Align...
   size_t align = (size_t)buf & (ALIGN_TO_BYTES - 1);
   if (align != 0U) {
     align = ALIGN_TO_BYTES - align;
@@ -64,7 +64,7 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
     }
   }
 
-  /* Use as big chunks as possible. */
+  // Use as big chunks as possible.
 #if defined(__x86_64__) || defined(_M_X64)
   for (; size >= 8; size -= 8, buf += 8) {
     crc = (uint32_t)_mm_crc32_u64(crc, *(const uint64_t*)buf);
@@ -75,7 +75,7 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   }
 #endif
 
-  /* Handle tail. */
+  // Handle tail.
   while (size--) {
     crc = _mm_crc32_u8(crc, *buf++);
   }
@@ -85,8 +85,8 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
 
 #else
 
-int _hzr_can_use_sse4_2(void) {
-  return 0;
+hzr_bool _hzr_can_use_sse4_2(void) {
+  return HZR_FALSE;
 }
 
 uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
@@ -95,4 +95,4 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   return 0;
 }
 
-#endif /* SSE 4.2 */
+#endif // SSE 4.2

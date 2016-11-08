@@ -28,6 +28,14 @@ if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "86")
   endif()
 endif()
 
+# Enable fast ARMv8-optimized CRC32C routine.
+if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm")
+  message("Using ARM optimizations.")
+  add_definitions("-DHZR_ARCH_ARM")
+  set(lib_sources ${lib_sources} lib/hzr_crc32c_armv8.c)
+endif()
+
+
 add_library(hzr ${lib_sources} ${lib_includes})
 
 target_include_directories(hzr PUBLIC include)
