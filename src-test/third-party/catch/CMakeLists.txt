@@ -23,8 +23,6 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(hzr C CXX)
-
-add_subdirectory(src)
-add_subdirectory(src-test)
+add_library(catch INTERFACE)
+target_include_directories(catch INTERFACE include)
 

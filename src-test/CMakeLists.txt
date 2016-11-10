@@ -23,8 +23,38 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(hzr C CXX)
+add_subdirectory(third-party/catch)
 
-add_subdirectory(src)
-add_subdirectory(src-test)
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -W -std=c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -std=c++03")
+endif()
+
+list(APPEND HZR_TEST_LIBRARIES catch)
+list(APPEND HZR_TEST_LIBRARIES hzr)
+
+if (UNIX AND NOT APPLE)
+  find_library(MATH_LIBRARY m)
+  if(MATH_LIBRARY)
+    list(APPEND HZR_TEST_LIBRARIES ${MATH_LIBRARY})
+  endif()
+endif()
+
+find_package(ZLIB)
+if(ZLIB_FOUND)
+  include_directories(${ZLIB_INCLUDE_DIRS})
+  add_definitions(-DHZR_HAS_ZLIB)
+  list(APPEND HZR_TEST_LIBRARIES ${ZLIB_LIBRARIES})
+endif()
+
+set(benchmark_sources
+    benchmark.c
+    random.c)
+
+add_executable(compression_tests compression_tests.cpp)
+target_link_libraries(compression_tests ${HZR_TEST_LIBRARIES})
+
+add_executable(benchmark ${benchmark_sources})
+target_link_libraries(benchmark ${HZR_TEST_LIBRARIES})
+
 
