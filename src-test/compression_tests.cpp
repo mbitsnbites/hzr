@@ -20,7 +20,6 @@
 //  3. This notice may not be removed or altered from any source distribution.
 //------------------------------------------------------------------------------
 
-#define CATCH_CONFIG_MAIN
 #include <catch.hpp>
 
 #include <stdio.h>

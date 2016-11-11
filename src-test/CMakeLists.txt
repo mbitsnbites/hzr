@@ -23,12 +23,9 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-add_subdirectory(third-party/catch)
+enable_language(CXX)
 
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -W -std=c99")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -std=c++03")
-endif()
+add_subdirectory(third-party/catch)
 
 list(APPEND HZR_TEST_LIBRARIES catch)
 list(APPEND HZR_TEST_LIBRARIES hzr)
@@ -47,14 +44,13 @@ if(ZLIB_FOUND)
   list(APPEND HZR_TEST_LIBRARIES ${ZLIB_LIBRARIES})
 endif()
 
-set(benchmark_sources
-    benchmark.c
-    random.c)
-
-add_executable(compression_tests compression_tests.cpp)
+add_executable(compression_tests
+               test_main.cpp
+               compression_tests.cpp)
 target_link_libraries(compression_tests ${HZR_TEST_LIBRARIES})
 
-add_executable(benchmark ${benchmark_sources})
+add_executable(benchmark
+               benchmark.c
+               random.c)
 target_link_libraries(benchmark ${HZR_TEST_LIBRARIES})
-
 

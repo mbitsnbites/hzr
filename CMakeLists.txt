@@ -23,7 +23,7 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(hzr C CXX)
+project(hzr C)
 
 add_subdirectory(src)
 add_subdirectory(src-test)
