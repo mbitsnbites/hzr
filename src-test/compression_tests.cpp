@@ -22,153 +22,109 @@
 
 #include <catch.hpp>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <algorithm>
+#include <iostream>
 
 #include <libhzr.h>
 
 namespace {
 
-const size_t max_uncompressed_size = 500000;
+const size_t MAX_UNCOMPRESSED_SIZE = 500000;
 
-const size_t sizes[] = {
-  max_uncompressed_size,
-  max_uncompressed_size / 2,
-  max_uncompressed_size / 5,
-  max_uncompressed_size / 10,
-  max_uncompressed_size / 20,
-  max_uncompressed_size / 50,
-  max_uncompressed_size > 100 ? 100 : max_uncompressed_size,
-  max_uncompressed_size > 10 ? 10 : max_uncompressed_size,
-  max_uncompressed_size > 1 ? 1 : max_uncompressed_size,
-  0
-};
-const size_t num_sizes = sizeof(sizes) / sizeof(sizes[0]);
+const size_t SIZES[] = {
+    MAX_UNCOMPRESSED_SIZE,
+    MAX_UNCOMPRESSED_SIZE / 2,
+    MAX_UNCOMPRESSED_SIZE / 5,
+    MAX_UNCOMPRESSED_SIZE / 10,
+    MAX_UNCOMPRESSED_SIZE / 20,
+    MAX_UNCOMPRESSED_SIZE / 50,
+    MAX_UNCOMPRESSED_SIZE > 100 ? 100 : MAX_UNCOMPRESSED_SIZE,
+    MAX_UNCOMPRESSED_SIZE > 10 ? 10 : MAX_UNCOMPRESSED_SIZE,
+    MAX_UNCOMPRESSED_SIZE > 1 ? 1 : MAX_UNCOMPRESSED_SIZE,
+    0};
+const size_t NUM_SIZES = sizeof(SIZES) / sizeof(SIZES[0]);
 
-bool perform_test(const unsigned char* uncompressed,
-                        size_t uncompressed_size) {
+const size_t HZR_HEADER_SIZE = 9;
+
+// Statically allocate memory for the compression/decompression.
+unsigned char s_uncompressed[MAX_UNCOMPRESSED_SIZE];
+unsigned char s_compressed[MAX_UNCOMPRESSED_SIZE + HZR_HEADER_SIZE];
+unsigned char s_uncompressed2[MAX_UNCOMPRESSED_SIZE];
+
+void perform_test(size_t uncompressed_size) {
   // Compress the data.
   const size_t max_compressed_size = hzr_max_compressed_size(uncompressed_size);
-  printf("  - Max compressed size: %ld\n", max_compressed_size);
-  unsigned char *compressed = (unsigned char *)malloc(max_compressed_size);
-  if (!compressed) {
-    printf("  - Unable to allocate memory for uncompressed data.\n");
-    return false;
-  }
   size_t compressed_size;
-  if (!hzr_encode(uncompressed, uncompressed_size, compressed,
-                  max_compressed_size, &compressed_size)) {
-    printf("  - Unable to compress the data.\n");
-    free(compressed);
-    return false;
-  }
-  printf("  - Compressed size: %ld (%f:1)\n", compressed_size,
-         (double)uncompressed_size / (double)compressed_size);
+  REQUIRE(hzr_encode(s_uncompressed, uncompressed_size, s_compressed,
+                     max_compressed_size, &compressed_size));
+  std::cout << "  Compression ratio: "
+            << (static_cast<double>(uncompressed_size) /
+                static_cast<double>(compressed_size)) << ":1 ("
+            << uncompressed_size << ":" << compressed_size << ")" << std::endl;
 
   // Decompress the data.
   size_t uncompressed_size2;
-  if (!hzr_verify(compressed, compressed_size, &uncompressed_size2)) {
-    printf("  - Verification of the compressed data failed.\n");
-    free(compressed);
-    return false;
-  }
-  if (uncompressed_size2 != uncompressed_size) {
-    printf("  - Decoded size mismatch: %ld != %ld\n", uncompressed_size2,
-           uncompressed_size);
-    free(compressed);
-    return false;
-  }
-  unsigned char *uncompressed2 = (unsigned char *)malloc(uncompressed_size2);
-  if (!uncompressed2) {
-    printf("  - Unable to allocate memory for uncompressed data 2.\n");
-    free(compressed);
-    return false;
-  }
-  if (!hzr_decode(compressed, compressed_size, uncompressed2,
-                  uncompressed_size2)) {
-    printf("  - Unable to decode the data.\n");
-    free(uncompressed2);
-    free(compressed);
-    return false;
-  }
+  CHECK(hzr_verify(s_compressed, compressed_size, &uncompressed_size2));
+  CHECK(uncompressed_size2 == uncompressed_size);
+  CHECK(hzr_decode(s_compressed, compressed_size, s_uncompressed2,
+                   uncompressed_size2));
 
   // Check that the data is correct.
-  if (memcmp(uncompressed, uncompressed2, uncompressed_size) != 0) {
-    printf("  - The decoded data did not match the original data.\n");
-    free(uncompressed2);
-    free(compressed);
-    return false;
+  CHECK(std::equal(s_uncompressed, s_uncompressed + uncompressed_size,
+                   s_uncompressed2));
+}
+
+}  // namespace
+
+TEST_CASE("Test 1 (good case)", "[compression]") {
+  std::cout << "Test 1 (good case)" << std::endl;
+  for (size_t k = 0; k < NUM_SIZES; ++k) {
+    const size_t uncompressed_size = SIZES[k];
+    std::fill(s_uncompressed, s_uncompressed + uncompressed_size, 0);
+    perform_test(uncompressed_size);
   }
-
-  // Free buffers.
-  free(uncompressed2);
-  free(compressed);
-
-  return true;
 }
 
-void test_data(const char* name,
-                     const unsigned char* uncompressed,
-                     size_t uncompressed_size) {
-  printf("TEST: %s (%ld bytes)\n", name, uncompressed_size);
-  int result = perform_test(uncompressed, uncompressed_size);
-  REQUIRE(result == true);
-}
-
-void test_data_1(unsigned char *uncompressed, size_t uncompressed_size) {
-  memset(uncompressed, 0, uncompressed_size);
-  test_data("good case (all zeros)", uncompressed, uncompressed_size);
-}
-
-void test_data_2(unsigned char *uncompressed, size_t uncompressed_size) {
-  for (size_t i = 0; i < uncompressed_size; ++i) {
-    uncompressed[i] = i & 255;
+TEST_CASE("Test 2 (bad case)", "[compression]") {
+  std::cout << "Test 2 (bad case)" << std::endl;
+  for (size_t k = 0; k < NUM_SIZES; ++k) {
+    const size_t uncompressed_size = SIZES[k];
+    for (size_t i = 0; i < uncompressed_size; ++i) {
+      s_uncompressed[i] = i & 255;
+    }
+    perform_test(uncompressed_size);
   }
-  test_data("bad case", uncompressed, uncompressed_size);
 }
 
-void test_data_3(unsigned char *uncompressed, size_t uncompressed_size) {
-  memset(uncompressed, 0, uncompressed_size);
-  for (size_t i = uncompressed_size / 2; i < uncompressed_size; ++i) {
-    uncompressed[i] = i & 255;
+TEST_CASE("Test 3", "[compression]") {
+  std::cout << "Test 3" << std::endl;
+  for (size_t k = 0; k < NUM_SIZES; ++k) {
+    const size_t uncompressed_size = SIZES[k];
+    std::fill(s_uncompressed + (uncompressed_size / 2),
+              s_uncompressed + uncompressed_size, 0);
+    for (size_t i = uncompressed_size / 2; i < uncompressed_size; ++i) {
+      s_uncompressed[i] = i & 255;
+    }
+    perform_test(uncompressed_size);
   }
-  test_data("test3", uncompressed, uncompressed_size);
 }
 
-void test_data_4(unsigned char *uncompressed, size_t uncompressed_size) {
-  for (size_t i = 0; i < uncompressed_size; ++i) {
-    uncompressed[i] = i & 15;
+TEST_CASE("Test 4", "[compression]") {
+  std::cout << "Test 4" << std::endl;
+  for (size_t k = 0; k < NUM_SIZES; ++k) {
+    const size_t uncompressed_size = SIZES[k];
+    for (size_t i = 0; i < uncompressed_size; ++i) {
+      s_uncompressed[i] = i & 15;
+    }
+    perform_test(uncompressed_size);
   }
-  test_data("test4", uncompressed, uncompressed_size);
 }
 
-void test_data_5(unsigned char *uncompressed, size_t uncompressed_size) {
-  memset(uncompressed, 1, uncompressed_size);
-  test_data("all ones", uncompressed, uncompressed_size);
-}
-
-} // namespace
-
-TEST_CASE("Test everything", "[compression]" ) {
-  // Allocate memory for the uncompressed data.
-  unsigned char *uncompressed = (unsigned char *)malloc(max_uncompressed_size);
-  if (!uncompressed) {
-    printf("Unable to allocate memory for uncompressed data.\n");
-    return;
+TEST_CASE("Test 5", "[compression]") {
+  std::cout << "Test 5" << std::endl;
+  for (size_t k = 0; k < NUM_SIZES; ++k) {
+    const size_t uncompressed_size = SIZES[k];
+    std::fill(s_uncompressed, s_uncompressed + uncompressed_size, 1);
+    perform_test(uncompressed_size);
   }
-
-  // Perform tests.
-  for (size_t k = 0; k < num_sizes; ++k) {
-    const size_t uncompressed_size = sizes[k];
-    test_data_1(uncompressed, uncompressed_size);
-    test_data_2(uncompressed, uncompressed_size);
-    test_data_3(uncompressed, uncompressed_size);
-    test_data_4(uncompressed, uncompressed_size);
-    test_data_5(uncompressed, uncompressed_size);
-  }
-
-  // Free the uncompressed data.
-  free(uncompressed);
 }
-
