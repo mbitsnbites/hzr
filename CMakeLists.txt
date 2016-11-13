@@ -25,6 +25,9 @@ cmake_minimum_required(VERSION 3.0)
 
 project(hzr C)
 
+# Library.
 add_subdirectory(src)
-add_subdirectory(src-test)
 
+# Unit tests.
+enable_testing()
+add_subdirectory(tests)
