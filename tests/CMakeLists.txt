@@ -50,8 +50,9 @@ add_executable(compression_tests
 target_link_libraries(compression_tests ${HZR_TEST_LIBRARIES})
 add_test(NAME "Compression_tests" COMMAND compression_tests)
 
-add_executable(benchmark
-               benchmark.cpp
+add_executable(performance_tests
+               test_main.cpp
+               performance_tests.cpp
                random.cpp)
-target_link_libraries(benchmark ${HZR_TEST_LIBRARIES})
-
+target_link_libraries(performance_tests ${HZR_TEST_LIBRARIES})
+add_test(NAME "Performance_tests" COMMAND performance_tests)
