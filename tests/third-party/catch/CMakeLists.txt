@@ -23,11 +23,6 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(hzr C)
+add_library(catch INTERFACE)
+target_include_directories(catch INTERFACE include)
 
-# Library.
-add_subdirectory(src)
-
-# Unit tests.
-enable_testing()
-add_subdirectory(tests)

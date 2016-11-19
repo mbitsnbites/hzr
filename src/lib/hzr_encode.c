@@ -252,7 +252,7 @@ static void MakeTree(SymbolInfo* sym, WriteStream* stream) {
 
 static hzr_bool OnlySingleCode(const SymbolInfo* const symbols) {
   int used_codes = 0;
-  hzr_bool has_zeros = 0;
+  int has_zeros = 0;
   int num_nonzero_codes = 0;
   for (int k = 0; k < kNumSymbols; ++k) {
     if (symbols[k].count > 0) {
@@ -324,7 +324,7 @@ static hzr_status_t EncodeFill(const void* in,
   WriteBits(&hdr_stream, HZR_ENCODING_FILL, 8);
 
   // Write the fill code.
-  WriteBits(&hdr_stream, (uint32_t)(*(uint8_t*)in), 8);
+  WriteBits(&hdr_stream, (uint32_t)(*(const uint8_t*)in), 8);
 
   // Calculate the encoded size.
   *encoded_size = HZR_HEADER_SIZE + 1;

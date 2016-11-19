@@ -23,13 +23,12 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -W -Wall -Wextra -pedantic -std=c99")
-elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything -Wno-padded -Wno-cast-align -std=c99")
-endif()
+enable_language(CXX)
 
-list(APPEND HZR_TEST_LIBRARIES "hzr")
+add_subdirectory(third-party/catch)
+
+list(APPEND HZR_TEST_LIBRARIES catch)
+list(APPEND HZR_TEST_LIBRARIES hzr)
 
 if (UNIX AND NOT APPLE)
   find_library(MATH_LIBRARY m)
@@ -45,16 +44,15 @@ if(ZLIB_FOUND)
   list(APPEND HZR_TEST_LIBRARIES ${ZLIB_LIBRARIES})
 endif()
 
-set(demo_sources
-    demo.c)
+add_executable(compression_tests
+               test_main.cpp
+               compression_tests.cpp)
+target_link_libraries(compression_tests ${HZR_TEST_LIBRARIES})
+add_test(NAME "Compression_tests" COMMAND compression_tests)
 
-set(benchmark_sources
-    benchmark.c
-    random.c)
-
-add_executable(demo ${demo_sources})
-target_link_libraries(demo ${HZR_TEST_LIBRARIES})
-
-add_executable(benchmark ${benchmark_sources})
-target_link_libraries(benchmark ${HZR_TEST_LIBRARIES})
-
+add_executable(performance_tests
+               test_main.cpp
+               performance_tests.cpp
+               random.cpp)
+target_link_libraries(performance_tests ${HZR_TEST_LIBRARIES})
+add_test(NAME "Performance_tests" COMMAND performance_tests)
