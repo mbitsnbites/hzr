@@ -25,17 +25,26 @@
 
 #include <stdint.h>
 
-// Initialize the random number generator.
-void random_init(const uint32_t seed);
+class random_t {
+ public:
+  random_t(const uint32_t seed);
 
-// Obtain a 32-bit random number.
-uint32_t random_get_u32();
+  // Obtain an 8-bit random number.
+  uint8_t rnd();
 
-// Obtain an 8-bit random number.
-uint8_t random_get_u8();
+  // Obtain an 8-bit normally distributed random number.
+  uint8_t gaussian(uint8_t std_dev);
 
-// Obtain an 8-bit normally distributed random number.
-uint8_t gaussian_get_u8(uint8_t std_dev);
+ private:
+  void twist();
+  double gaussian(const double mean, const double stdDev);
+  uint32_t get_u32();
+
+  static const int N = 624;
+
+  uint32_t mt_[N];
+  uint16_t index_;
+};
 
 #endif // RANDOM_H_
 

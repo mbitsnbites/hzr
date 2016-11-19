@@ -26,50 +26,50 @@
 
 #include <math.h>
 
+namespace {
+
 // Define MT19937 constants (32-bit RNG)
 
 // Assumes W = 32 (omitting this)
-#define N 624
-#define M 397
-#define R 31
-#define A 0x9908B0DF
-#define F 1812433253
+const unsigned M = 397;
+const unsigned R = 31;
+const unsigned A = 0x9908B0DF;
+const unsigned F = 1812433253;
 
-#define U 11
+const unsigned U = 11;
 // Assumes D = 0xFFFFFFFF (omitting this)
 
-#define S 7
-#define B 0x9D2C5680
+const unsigned S = 7;
+const unsigned B = 0x9D2C5680;
 
-#define T 15
-#define C 0xEFC60000
+const unsigned T = 15;
+const unsigned C = 0xEFC60000;
 
-#define L 18
+const unsigned L = 18;
 
-#define MASK_LOWER ((1ull << R) - 1)
-#define MASK_UPPER ((1ull << R))
+const unsigned MASK_LOWER = (1ull << R) - 1;
+const unsigned MASK_UPPER = 1ull << R;
 
-static uint32_t mt[N];
-static uint16_t index;
+}  // namespace
 
-static void Twist() {
+void random_t::twist() {
   uint32_t i, x, xA;
 
   for (i = 0; i < N; i++) {
-    x = (mt[i] & MASK_UPPER) + (mt[(i + 1) % N] & MASK_LOWER);
+    x = (mt_[i] & MASK_UPPER) + (mt_[(i + 1) % N] & MASK_LOWER);
 
     xA = x >> 1;
 
     if (x & 0x1)
       xA ^= A;
 
-    mt[i] = mt[(i + M) % N] ^ xA;
+    mt_[i] = mt_[(i + M) % N] ^ xA;
   }
 
-  index = 0;
+  index_ = 0;
 }
 
-static double Gaussian(const double mean, const double stdDev) {
+double random_t::gaussian(const double mean, const double stdDev) {
   static int hasSpare = 0;
   static double spare;
 
@@ -81,8 +81,8 @@ static double Gaussian(const double mean, const double stdDev) {
 
   double u, v, s;
   do {
-    u = ((double)random_get_u32() / 4294967296.0) * 2.0 - 1.0;
-    v = ((double)random_get_u32() / 4294967296.0) * 2.0 - 1.0;
+    u = ((double)get_u32() / 4294967296.0) * 2.0 - 1.0;
+    v = ((double)get_u32() / 4294967296.0) * 2.0 - 1.0;
     s = u * u + v * v;
   } while ((s >= 1.0) || (s == 0.0));
 
@@ -92,32 +92,31 @@ static double Gaussian(const double mean, const double stdDev) {
 }
 
 // Re-init with a given seed
-void random_init(const uint32_t seed) {
+random_t::random_t(const uint32_t seed) {
+  mt_[0] = seed;
+
   uint32_t i;
-
-  mt[0] = seed;
-
   for (i = 1; i < N; i++) {
-    mt[i] = (F * (mt[i - 1] ^ (mt[i - 1] >> 30)) + i);
+    mt_[i] = (F * (mt_[i - 1] ^ (mt_[i - 1] >> 30)) + i);
   }
 
-  index = N;
+  index_ = N;
 }
 
 // Obtain a 32-bit random number
-uint32_t random_get_u32() {
+uint32_t random_t::get_u32() {
   uint32_t y;
-  int i = index;
+  int i = index_;
 
-  if (index >= N) {
-    Twist();
-    i = index;
+  if (index_ >= N) {
+    twist();
+    i = index_;
   }
 
-  y = mt[i];
-  index = i + 1;
+  y = mt_[i];
+  index_ = i + 1;
 
-  y ^= (mt[i] >> U);
+  y ^= (mt_[i] >> U);
   y ^= (y << S) & B;
   y ^= (y << T) & C;
   y ^= (y >> L);
@@ -126,13 +125,13 @@ uint32_t random_get_u32() {
 }
 
 // Obtain an 8-bit random number
-uint8_t random_get_u8() {
-  uint32_t r32 = random_get_u32();
+uint8_t random_t::rnd() {
+  uint32_t r32 = get_u32();
   return (uint8_t)((r32 >> 24) ^ (r32 >> 16) ^ (r32 >> 8) ^ r32);
 }
 
-uint8_t gaussian_get_u8(uint8_t std_dev) {
-  double g = Gaussian(0.0, (double)std_dev);
+uint8_t random_t::gaussian(uint8_t std_dev) {
+  double g = gaussian(0.0, (double)std_dev);
   if (g < -128.0 || g > 127.0) {
     g = 0.0;
   }
