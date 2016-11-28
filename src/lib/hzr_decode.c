@@ -51,6 +51,10 @@ static void InitReadStream(ReadStream* stream, const void* buf, size_t size) {
   }
 }
 
+FORCE_INLINE static const uint8_t* GetBytePtr(ReadStream* stream) {
+  return stream->byte_ptr + (stream->bit_pos >> 3);
+}
+
 FORCE_INLINE static void UpdateBitCache(ReadStream* stream) {
   while (stream->bit_pos >= 8) {
     stream->bit_cache =
@@ -187,6 +191,29 @@ FORCE_INLINE static void AdvanceChecked(ReadStream* stream, int N) {
   UpdateBitCacheSafe(stream);
 }
 
+// Advance the pointer by N bytes, with checking.
+FORCE_INLINE static void AdvanceBytesChecked(ReadStream* stream, size_t N) {
+  const uint8_t* new_byte_ptr = stream->byte_ptr + N;
+
+  // We only allow this operation for aligned byte positions, and we do not
+  // allow advancing past the end.
+  if (UNLIKELY((stream->bit_pos != 0) || (new_byte_ptr > stream->end_ptr))) {
+    stream->read_failed = HZR_TRUE;
+    return;
+  }
+
+  // Advance.
+  stream->byte_ptr = new_byte_ptr;
+
+  // Re-populate the bit cache.
+  stream->bit_cache = 0U;
+  size_t bytes_left = stream->end_ptr - new_byte_ptr;
+  size_t bytes_to_read = hzr_min(4, bytes_left);
+  for (size_t i = 0; i < bytes_to_read; ++i) {
+    stream->bit_cache |= ((uint32_t)new_byte_ptr[i]) << (8 * i);
+  }
+}
+
 // Check if we have reached the end of the buffer.
 FORCE_INLINE static hzr_bool AtTheEnd(const ReadStream* stream) {
   // This is a rought estimate that we have reached the end of the input
@@ -295,27 +322,51 @@ hzr_status_t hzr_verify(const void* in, size_t in_size, size_t* decoded_size) {
     return HZR_FAIL;
   }
 
-  // Parse the header.
+  // Initialize the stream.
   ReadStream stream;
   InitReadStream(&stream, in, in_size);
+
+  // Parse the master header.
   *decoded_size = (size_t)ReadBitsChecked(&stream, 32);
-  uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
-  uint8_t encoding_mode = (uint8_t)ReadBitsChecked(&stream, 8);
   if (stream.read_failed) {
     DLOG("Could not read the header.");
     return HZR_FAIL;
   }
-  if (encoding_mode > HZR_ENCODING_LAST) {
-    DLOG("Unsupported encoding.");
-    return HZR_FAIL;
-  }
 
-  // Check the checksum.
-  uint32_t actual_crc32 =
-      _hzr_crc32(stream.byte_ptr, in_size - HZR_HEADER_SIZE);
-  if (actual_crc32 != expected_crc32) {
-    DLOG("CRC32 check failed.");
-    return HZR_FAIL;
+  // Traverse all the blocks.
+  size_t decoded_bytes_left = *decoded_size;
+  while (decoded_bytes_left > 0) {
+    size_t block_size = hzr_min(decoded_bytes_left, HZR_MAX_BLOCK_SIZE);
+
+    // Parse the block header.
+    size_t encoded_size = ((size_t)ReadBitsChecked(&stream, 16)) + 1;
+    uint32_t expected_crc32 = ReadBitsChecked(&stream, 32);
+    uint8_t encoding_mode = (uint8_t)ReadBitsChecked(&stream, 8);
+    if (stream.read_failed) {
+      DLOG("Could not read the block header.");
+      return HZR_FAIL;
+    }
+    if (encoding_mode > HZR_ENCODING_LAST) {
+      DLOG("Unsupported encoding.");
+      return HZR_FAIL;
+    }
+
+    // Check the checksum.
+    const uint8_t* block_data = GetBytePtr(&stream);
+    uint32_t actual_crc32 = _hzr_crc32(block_data, encoded_size);
+    if (actual_crc32 != expected_crc32) {
+      DLOG("CRC32 check failed.");
+      return HZR_FAIL;
+    }
+
+    // Skip past the encoded data of this buffer.
+    AdvanceBytesChecked(&stream, encoded_size);
+    if (stream.read_failed) {
+      DLOG("Premature end of input buffer.");
+      return HZR_FAIL;
+    }
+
+    decoded_bytes_left -= block_size;
   }
 
   return HZR_OK;
