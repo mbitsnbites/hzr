@@ -59,20 +59,32 @@
 // Types.
 typedef enum { HZR_FALSE = 0, HZR_TRUE = 1 } hzr_bool;
 
-// Encoded data header size (in bytes).
-// The header format is:
-//  0: size of the decoded data (32 bits).
-//  4: CRC32 of the encoded data (32 bits).
-//  8: Encoding mode:
-//     0 = Plain copy (no compression)
-//     1 = Huffman + RLE
-//     2 = Fill
-#define HZR_HEADER_SIZE 9
+// The HZR data format is as follows:
+// * A master header:
+//    0: Size of the decoded data (32 bits).
+//
+// * Blocks, each representing a decompressed size of a maximum of 65536 bytes,
+//   and each having the following header:
+//    0: Size of the encoded data - 1 (16 bits).
+//    2: CRC32 of the encoded data (32 bits).
+//    6: Encoding mode (8 bits):
+//       0 = Plain copy (no compression)
+//       1 = Huffman + RLE
+//       2 = Fill
+
+// Size of the master header (in bytes).
+#define HZR_HEADER_SIZE 4
+
+// Size of the block header (in bytes).
+#define HZR_BLOCK_HEADER_SIZE 7
 
 #define HZR_ENCODING_COPY     0
 #define HZR_ENCODING_HUFF_RLE 1
 #define HZR_ENCODING_FILL     2
 #define HZR_ENCODING_LAST     HZR_ENCODING_FILL
+
+// Maximum number of decoded bytes in a block.
+#define HZR_MAX_BLOCK_SIZE 65536
 
 // A symbol is a 9-bit unsigned number.
 typedef uint16_t Symbol;
