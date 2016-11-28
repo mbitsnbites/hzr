@@ -50,11 +50,13 @@ const size_t SIZES[] = {MAX_UNCOMPRESSED_SIZE,
                         MAX_UNCOMPRESSED_SIZE / 32};
 const size_t NUM_SIZES = sizeof(SIZES) / sizeof(SIZES[0]);
 
-const size_t HZR_HEADER_SIZE = 9;
+// This is an approximation (rounded up) of the maximum compressed size.
+const size_t MAX_COMPRESSED_SIZE =
+    MAX_UNCOMPRESSED_SIZE + (MAX_UNCOMPRESSED_SIZE >> 13) + 4;
 
 // Statically allocate memory for the compression/decompression.
 unsigned char s_uncompressed[MAX_UNCOMPRESSED_SIZE];
-unsigned char s_compressed[MAX_UNCOMPRESSED_SIZE + HZR_HEADER_SIZE];
+unsigned char s_compressed[MAX_COMPRESSED_SIZE];
 unsigned char s_uncompressed2[MAX_UNCOMPRESSED_SIZE];
 
 double get_time() {
