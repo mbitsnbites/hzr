@@ -55,6 +55,11 @@ if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm")
   message("Using ARM optimizations.")
   add_definitions("-DHZR_ARCH_ARM")
   set(lib_sources ${lib_sources} lib/hzr_crc32c_armv8.c)
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    set_source_files_properties(lib/hzr_crc32c_armv8.c PROPERTIES COMPILE_FLAGS "-march=armv8-a+crc")
+  elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+    set_source_files_properties(lib/hzr_crc32c_armv8.c PROPERTIES COMPILE_FLAGS "-march=armv8-a -mcrc")
+  endif()
 endif()
 
 

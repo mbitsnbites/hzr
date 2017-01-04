@@ -20,7 +20,7 @@
 //  3. This notice may not be removed or altered from any source distribution.
 //------------------------------------------------------------------------------
 
-#include "hzr_crc32c_sse4.h"
+#include "hzr_crc32c_armv8.h"
 
 // Check if we are compiling with ARMv8+CRC32 support.
 #ifdef __ARM_FEATURE_CRC32
