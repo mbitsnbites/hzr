@@ -48,8 +48,11 @@
 #if !defined(NDEBUG)
 #include <stdio.h>
 #define DLOG(s) printf("%s:%d: %s\n", __FILE__, __LINE__, (s))
+#define DLOGF(s, ...) \
+  printf("%s:%d: " s "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #else
 #define DLOG(s)
+#define DLOGF(s, ...)
 #endif
 
 // Min/max macros.
