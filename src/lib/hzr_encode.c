@@ -46,6 +46,19 @@ static void InitWriteStream(WriteStream* stream, void* buf, size_t size) {
   stream->write_failed = HZR_FALSE;
 }
 
+// Copy the write state from one stream to another without altering the end
+// pointer.
+static void CopyWriteState(WriteStream* stream, const WriteStream* src_stream) {
+  stream->byte_ptr = src_stream->byte_ptr;
+  stream->bit_pos = src_stream->bit_pos;
+  stream->bit_cache = src_stream->bit_cache;
+  stream->write_failed = src_stream->write_failed;
+}
+
+FORCE_INLINE static uint8_t* GetBytePtr(WriteStream* stream) {
+  return stream->byte_ptr + (stream->bit_pos >> 3);
+}
+
 // Write the bit cache to the write stream if necessary.
 FORCE_INLINE static void FlushBitCache(WriteStream* stream) {
   while (stream->bit_pos >= 8) {
@@ -61,11 +74,18 @@ FORCE_INLINE static void FlushBitCache(WriteStream* stream) {
 }
 
 // Write the bit cache to the write stream - includig incomplete words.
-FORCE_INLINE static void ForceFlushBitCache(WriteStream* stream) {
+static void ForceFlushBitCache(WriteStream* stream) {
   FlushBitCache(stream);
   if (stream->bit_pos > 0) {
+    if (UNLIKELY(stream->byte_ptr >= stream->end_ptr)) {
+      stream->write_failed = HZR_TRUE;
+      return;
+    }
     *stream->byte_ptr =
         (uint8_t)(stream->bit_cache & (0xff >> (8 - stream->bit_pos)));
+    stream->bit_cache = 0U;
+    stream->bit_pos = 0;
+    stream->byte_ptr++;
   }
 }
 
@@ -272,43 +292,46 @@ static hzr_bool OnlySingleCode(const SymbolInfo* const symbols) {
   return (used_codes == 1) ? HZR_TRUE : HZR_FALSE;
 }
 
-static hzr_status_t PlainCopy(const void* in,
+static hzr_status_t PlainCopy(const uint8_t* in,
                               size_t in_size,
-                              void* out,
-                              size_t out_size,
+                              WriteStream* stream,
                               size_t* encoded_size) {
   // Check that the output buffer is large enough.
-  if (UNLIKELY(out_size < (in_size + HZR_HEADER_SIZE))) {
+  if (UNLIKELY((GetBytePtr(stream) + HZR_BLOCK_HEADER_SIZE + in_size) >
+               stream->end_ptr)) {
     DLOG("Output buffer too small for a plain copy.");
     return HZR_FAIL;
   }
 
-  // Copy the input buffer to the output buffer.
-  memcpy(((uint8_t*)out) + HZR_HEADER_SIZE, in, in_size);
-
   // Calculate the CRC for the buffer.
   uint32_t crc32 = _hzr_crc32(in, in_size);
 
-  // Write the header.
-  WriteStream hdr_stream;
-  InitWriteStream(&hdr_stream, out, out_size);
-  WriteBits(&hdr_stream, (uint32_t)in_size, 32);
-  WriteBits(&hdr_stream, crc32, 32);
-  WriteBits(&hdr_stream, HZR_ENCODING_COPY, 8);
+  // Write the block header.
+  WriteBits(stream, (uint32_t)(in_size - 1), 16);
+  WriteBits(stream, crc32, 32);
+  WriteBits(stream, HZR_ENCODING_COPY, 8);
+  ForceFlushBitCache(stream);
+
+  // Copy the input buffer to the output buffer.
+  memcpy(GetBytePtr(stream), in, in_size);
+
+  // Advance the stream.
+  // Note: It is safe to just increase the byte pointer here, since the stream
+  // is byte aligned.
+  stream->byte_ptr += in_size;
 
   // Calculate the encoded size.
-  *encoded_size = in_size + HZR_HEADER_SIZE;
+  *encoded_size = in_size + HZR_BLOCK_HEADER_SIZE;
 
   return HZR_OK;
 }
 
-static hzr_status_t EncodeFill(const void* in,
-                               size_t in_size,
-                               void* out,
-                               size_t out_size,
+static hzr_status_t EncodeFill(const uint8_t* in,
+                               WriteStream* stream,
                                size_t* encoded_size) {
   // Check that the output buffer is large enough.
-  if (UNLIKELY(out_size < (HZR_HEADER_SIZE + 1))) {
+  if (UNLIKELY((GetBytePtr(stream) + HZR_BLOCK_HEADER_SIZE + 1) >
+               stream->end_ptr)) {
     DLOG("Output buffer too small for fill encoding.");
     return HZR_FAIL;
   }
@@ -316,24 +339,142 @@ static hzr_status_t EncodeFill(const void* in,
   // Calculate the CRC for the buffer.
   uint32_t crc32 = _hzr_crc32(in, 1);
 
-  // Write the header.
-  WriteStream hdr_stream;
-  InitWriteStream(&hdr_stream, out, out_size);
-  WriteBits(&hdr_stream, (uint32_t)in_size, 32);
-  WriteBits(&hdr_stream, crc32, 32);
-  WriteBits(&hdr_stream, HZR_ENCODING_FILL, 8);
+  // Write the block header.
+  WriteBits(stream, 0U, 16);
+  WriteBits(stream, crc32, 32);
+  WriteBits(stream, HZR_ENCODING_FILL, 8);
 
   // Write the fill code.
-  WriteBits(&hdr_stream, (uint32_t)(*(const uint8_t*)in), 8);
+  WriteBits(stream, (uint32_t)(*in), 8);
+  ForceFlushBitCache(stream);
 
   // Calculate the encoded size.
-  *encoded_size = HZR_HEADER_SIZE + 1;
+  *encoded_size = HZR_BLOCK_HEADER_SIZE + 1;
+
+  return HZR_OK;
+}
+
+static hzr_status_t EncodeSingleBlock(WriteStream* stream,
+                                      const uint8_t* in,
+                                      size_t in_size,
+                                      size_t* encoded_size) {
+  // Create a stream that is limited to this block (this is required to detect
+  // block buffer overruns).
+  WriteStream block_stream = *stream;
+  block_stream.end_ptr =
+      GetBytePtr(&block_stream) + HZR_BLOCK_HEADER_SIZE + in_size;
+  if (block_stream.end_ptr > stream->end_ptr) {
+    block_stream.end_ptr = stream->end_ptr;
+  }
+
+  // Zero out the block header (will be filled out later).
+  WriteBits(&block_stream, 0U, 16);
+  WriteBits(&block_stream, 0U, 32);
+  WriteBits(&block_stream, 0U, 8);
+
+  // Calculate the histogram for input data.
+  SymbolInfo symbols[kNumSymbols];
+  Histogram(in, symbols, in_size);
+
+  // Check if we have a single symbol.
+  if (OnlySingleCode(symbols)) {
+    return EncodeFill(in, stream, encoded_size);
+  }
+
+  // Build the Huffman tree, and write it to the output stream.
+  MakeTree(symbols, &block_stream);
+  if (UNLIKELY(block_stream.write_failed)) {
+    return PlainCopy(in, in_size, stream, encoded_size);
+  }
+
+  // Encode the input stream.
+  const uint8_t* in_data = in;
+  for (size_t k = 0; k < in_size;) {
+    uint8_t symbol = in_data[k];
+
+    // Possible RLE?
+    if (symbol == 0) {
+      size_t zeros;
+      for (zeros = 1U; zeros < 16662U && (k + zeros) < in_size; ++zeros) {
+        if (in_data[k + zeros] != 0) {
+          break;
+        }
+      }
+      if (zeros == 1) {
+        WriteBits(&block_stream, symbols[0].code, symbols[0].bits);
+      } else if (zeros == 2) {
+        WriteBits(&block_stream, symbols[kSymTwoZeros].code,
+                  symbols[kSymTwoZeros].bits);
+      } else if (zeros <= 6) {
+        uint32_t count = (uint32_t)(zeros - 3);
+        WriteBits(&block_stream, symbols[kSymUpTo6Zeros].code,
+                  symbols[kSymUpTo6Zeros].bits);
+        WriteBits(&block_stream, count, 2);
+      } else if (zeros <= 22) {
+        uint32_t count = (uint32_t)(zeros - 7);
+        WriteBits(&block_stream, symbols[kSymUpTo22Zeros].code,
+                  symbols[kSymUpTo22Zeros].bits);
+        WriteBits(&block_stream, count, 4);
+      } else if (zeros <= 278) {
+        uint32_t count = (uint32_t)(zeros - 23);
+        WriteBits(&block_stream, symbols[kSymUpTo278Zeros].code,
+                  symbols[kSymUpTo278Zeros].bits);
+        WriteBits(&block_stream, count, 8);
+      } else {
+        uint32_t count = (uint32_t)(zeros - 279);
+        WriteBits(&block_stream, symbols[kSymUpTo16662Zeros].code,
+                  symbols[kSymUpTo16662Zeros].bits);
+        WriteBits(&block_stream, count, 14);
+      }
+      k += zeros;
+    } else {
+      WriteBits(&block_stream, symbols[symbol].code, symbols[symbol].bits);
+      k++;
+    }
+
+    if (UNLIKELY(block_stream.write_failed)) {
+      return PlainCopy(in, in_size, stream, encoded_size);
+    }
+  }
+
+  // Write final bits to the stream.
+  ForceFlushBitCache(&block_stream);
+
+  // Make sure that the compressed buffer fit into this block.
+  size_t encoded_size_wo_hdr =
+      (size_t)(GetBytePtr(&block_stream) - GetBytePtr(stream)) -
+      HZR_BLOCK_HEADER_SIZE;
+  if (UNLIKELY(block_stream.write_failed ||
+               (encoded_size_wo_hdr >= HZR_MAX_BLOCK_SIZE))) {
+    return PlainCopy(in, in_size, stream, encoded_size);
+  }
+
+  // Return the size of the encoded output data.
+  *encoded_size = encoded_size_wo_hdr + HZR_BLOCK_HEADER_SIZE;
+
+  // Calculate the CRC for the compressed buffer.
+  uint8_t* encoded_start = GetBytePtr(stream) + HZR_BLOCK_HEADER_SIZE;
+  uint32_t crc32 = _hzr_crc32(encoded_start, encoded_size_wo_hdr);
+
+  // Write the block header.
+  WriteBits(stream, (uint32_t)(encoded_size_wo_hdr - 1), 16);
+  WriteBits(stream, crc32, 32);
+  WriteBits(stream, HZR_ENCODING_HUFF_RLE, 8);
+
+  // Commit the stream state.
+  CopyWriteState(stream, &block_stream);
 
   return HZR_OK;
 }
 
 size_t hzr_max_compressed_size(size_t uncompressed_size) {
-  return uncompressed_size + HZR_HEADER_SIZE;
+  size_t data_size = 0;
+  if (uncompressed_size > 0) {
+    size_t num_blocks =
+        (uncompressed_size + HZR_MAX_BLOCK_SIZE - 1) / HZR_MAX_BLOCK_SIZE;
+    data_size = (num_blocks * HZR_BLOCK_HEADER_SIZE) + uncompressed_size;
+  }
+  return HZR_HEADER_SIZE + data_size;
 }
 
 hzr_status_t hzr_encode(const void* in,
@@ -353,100 +494,32 @@ hzr_status_t hzr_encode(const void* in,
     return HZR_FAIL;
   }
 
-  const uint8_t* in_data = (const uint8_t*)in;
-
   // Initialize the output stream.
   WriteStream stream;
-  uint8_t* encoded_start = ((uint8_t*)out) + HZR_HEADER_SIZE;
-  InitWriteStream(&stream, encoded_start, out_size - HZR_HEADER_SIZE);
+  InitWriteStream(&stream, out, out_size);
 
-  // Calculate the histogram for input data.
-  SymbolInfo symbols[kNumSymbols];
-  Histogram(in_data, symbols, in_size);
-
-  // Check if we have a single symbol.
-  if (OnlySingleCode(symbols)) {
-    return EncodeFill(in, in_size, out, out_size, encoded_size);
-  }
-
-  // Build the Huffman tree, and write it to the output stream.
-  MakeTree(symbols, &stream);
-  if (UNLIKELY(stream.write_failed)) {
-    return PlainCopy(in, in_size, out, out_size, encoded_size);
-  }
-
-  // Encode the input stream.
-  for (size_t k = 0; k < in_size;) {
-    uint8_t symbol = in_data[k];
-
-    // Possible RLE?
-    if (symbol == 0) {
-      size_t zeros;
-      for (zeros = 1U; zeros < 16662U && (k + zeros) < in_size; ++zeros) {
-        if (in_data[k + zeros] != 0) {
-          break;
-        }
-      }
-      if (zeros == 1) {
-        WriteBits(&stream, symbols[0].code, symbols[0].bits);
-      } else if (zeros == 2) {
-        WriteBits(&stream, symbols[kSymTwoZeros].code,
-                  symbols[kSymTwoZeros].bits);
-      } else if (zeros <= 6) {
-        uint32_t count = (uint32_t)(zeros - 3);
-        WriteBits(&stream, symbols[kSymUpTo6Zeros].code,
-                  symbols[kSymUpTo6Zeros].bits);
-        WriteBits(&stream, count, 2);
-      } else if (zeros <= 22) {
-        uint32_t count = (uint32_t)(zeros - 7);
-        WriteBits(&stream, symbols[kSymUpTo22Zeros].code,
-                  symbols[kSymUpTo22Zeros].bits);
-        WriteBits(&stream, count, 4);
-      } else if (zeros <= 278) {
-        uint32_t count = (uint32_t)(zeros - 23);
-        WriteBits(&stream, symbols[kSymUpTo278Zeros].code,
-                  symbols[kSymUpTo278Zeros].bits);
-        WriteBits(&stream, count, 8);
-      } else {
-        uint32_t count = (uint32_t)(zeros - 279);
-        WriteBits(&stream, symbols[kSymUpTo16662Zeros].code,
-                  symbols[kSymUpTo16662Zeros].bits);
-        WriteBits(&stream, count, 14);
-      }
-      k += zeros;
-    } else {
-      WriteBits(&stream, symbols[symbol].code, symbols[symbol].bits);
-      k++;
-    }
-
-    if (UNLIKELY(stream.write_failed)) {
-      return PlainCopy(in, in_size, out, out_size, encoded_size);
-    }
-  }
-
-  // Write final bits to the stream.
+  // Write the master header.
+  WriteBits(&stream, (uint32_t)in_size, 32);
   ForceFlushBitCache(&stream);
-  if (UNLIKELY(stream.write_failed)) {
-    return PlainCopy(in, in_size, out, out_size, encoded_size);
+  size_t total_encoded_size = HZR_HEADER_SIZE;
+
+  // Compress the input data block by block.
+  const uint8_t* in_data = (const uint8_t*)in;
+  size_t input_bytes_left = in_size;
+  while (input_bytes_left > 0) {
+    size_t this_block_size = hzr_min(input_bytes_left, HZR_MAX_BLOCK_SIZE);
+    size_t this_encoded_size = 0;
+    hzr_status_t status = EncodeSingleBlock(&stream, in_data, this_block_size,
+                                            &this_encoded_size);
+    if (status != HZR_OK) {
+      return status;
+    }
+    total_encoded_size += this_encoded_size;
+    in_data += this_block_size;
+    input_bytes_left -= this_block_size;
   }
 
-  // Calculate the size of the encoded output data.
-  *encoded_size = (size_t)(stream.byte_ptr - (uint8_t*)out);
-  if (stream.bit_pos > 0) {
-    *encoded_size = *encoded_size + 1;
-  }
-
-  // Calculate the CRC for the compressed buffer.
-  uint32_t crc32 = _hzr_crc32(encoded_start, *encoded_size - HZR_HEADER_SIZE);
-
-  // Write the header.
-  {
-    WriteStream hdr_stream;
-    InitWriteStream(&hdr_stream, out, out_size);
-    WriteBits(&hdr_stream, (uint32_t)in_size, 32);
-    WriteBits(&hdr_stream, crc32, 32);
-    WriteBits(&hdr_stream, HZR_ENCODING_HUFF_RLE, 8);
-  }
-
+  // Compression succeeded.
+  *encoded_size = total_encoded_size;
   return HZR_OK;
 }
