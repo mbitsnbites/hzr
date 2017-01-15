@@ -46,6 +46,15 @@ static void InitWriteStream(WriteStream* stream, void* buf, size_t size) {
   stream->write_failed = HZR_FALSE;
 }
 
+// Copy the write state from one stream to another without altering the end
+// pointer.
+static void CopyWriteState(WriteStream* stream, const WriteStream* src_stream) {
+  stream->byte_ptr = src_stream->byte_ptr;
+  stream->bit_pos = src_stream->bit_pos;
+  stream->bit_cache = src_stream->bit_cache;
+  stream->write_failed = src_stream->write_failed;
+}
+
 FORCE_INLINE static uint8_t* GetBytePtr(WriteStream* stream) {
   return stream->byte_ptr + (stream->bit_pos >> 3);
 }
@@ -349,13 +358,19 @@ static hzr_status_t EncodeSingleBlock(WriteStream* stream,
                                       const uint8_t* in,
                                       size_t in_size,
                                       size_t* encoded_size) {
-  // Make a copy of the output stream (we need it later).
-  WriteStream original_stream = *stream;
+  // Create a stream that is limited to this block (this is required to detect
+  // block buffer overruns).
+  WriteStream block_stream = *stream;
+  block_stream.end_ptr =
+      GetBytePtr(&block_stream) + HZR_BLOCK_HEADER_SIZE + in_size;
+  if (block_stream.end_ptr > stream->end_ptr) {
+    block_stream.end_ptr = stream->end_ptr;
+  }
 
   // Zero out the block header (will be filled out later).
-  WriteBits(stream, 0U, 16);
-  WriteBits(stream, 0U, 32);
-  WriteBits(stream, 0U, 8);
+  WriteBits(&block_stream, 0U, 16);
+  WriteBits(&block_stream, 0U, 32);
+  WriteBits(&block_stream, 0U, 8);
 
   // Calculate the histogram for input data.
   SymbolInfo symbols[kNumSymbols];
@@ -363,14 +378,12 @@ static hzr_status_t EncodeSingleBlock(WriteStream* stream,
 
   // Check if we have a single symbol.
   if (OnlySingleCode(symbols)) {
-    *stream = original_stream;
     return EncodeFill(in, stream, encoded_size);
   }
 
   // Build the Huffman tree, and write it to the output stream.
-  MakeTree(symbols, stream);
-  if (UNLIKELY(stream->write_failed)) {
-    *stream = original_stream;
+  MakeTree(symbols, &block_stream);
+  if (UNLIKELY(block_stream.write_failed)) {
     return PlainCopy(in, in_size, stream, encoded_size);
   }
 
@@ -388,53 +401,51 @@ static hzr_status_t EncodeSingleBlock(WriteStream* stream,
         }
       }
       if (zeros == 1) {
-        WriteBits(stream, symbols[0].code, symbols[0].bits);
+        WriteBits(&block_stream, symbols[0].code, symbols[0].bits);
       } else if (zeros == 2) {
-        WriteBits(stream, symbols[kSymTwoZeros].code,
+        WriteBits(&block_stream, symbols[kSymTwoZeros].code,
                   symbols[kSymTwoZeros].bits);
       } else if (zeros <= 6) {
         uint32_t count = (uint32_t)(zeros - 3);
-        WriteBits(stream, symbols[kSymUpTo6Zeros].code,
+        WriteBits(&block_stream, symbols[kSymUpTo6Zeros].code,
                   symbols[kSymUpTo6Zeros].bits);
-        WriteBits(stream, count, 2);
+        WriteBits(&block_stream, count, 2);
       } else if (zeros <= 22) {
         uint32_t count = (uint32_t)(zeros - 7);
-        WriteBits(stream, symbols[kSymUpTo22Zeros].code,
+        WriteBits(&block_stream, symbols[kSymUpTo22Zeros].code,
                   symbols[kSymUpTo22Zeros].bits);
-        WriteBits(stream, count, 4);
+        WriteBits(&block_stream, count, 4);
       } else if (zeros <= 278) {
         uint32_t count = (uint32_t)(zeros - 23);
-        WriteBits(stream, symbols[kSymUpTo278Zeros].code,
+        WriteBits(&block_stream, symbols[kSymUpTo278Zeros].code,
                   symbols[kSymUpTo278Zeros].bits);
-        WriteBits(stream, count, 8);
+        WriteBits(&block_stream, count, 8);
       } else {
         uint32_t count = (uint32_t)(zeros - 279);
-        WriteBits(stream, symbols[kSymUpTo16662Zeros].code,
+        WriteBits(&block_stream, symbols[kSymUpTo16662Zeros].code,
                   symbols[kSymUpTo16662Zeros].bits);
-        WriteBits(stream, count, 14);
+        WriteBits(&block_stream, count, 14);
       }
       k += zeros;
     } else {
-      WriteBits(stream, symbols[symbol].code, symbols[symbol].bits);
+      WriteBits(&block_stream, symbols[symbol].code, symbols[symbol].bits);
       k++;
     }
 
-    if (UNLIKELY(stream->write_failed)) {
-      *stream = original_stream;
+    if (UNLIKELY(block_stream.write_failed)) {
       return PlainCopy(in, in_size, stream, encoded_size);
     }
   }
 
   // Write final bits to the stream.
-  ForceFlushBitCache(stream);
+  ForceFlushBitCache(&block_stream);
 
   // Make sure that the compressed buffer fit into this block.
   size_t encoded_size_wo_hdr =
-      (size_t)(GetBytePtr(stream) - GetBytePtr(&original_stream)) -
+      (size_t)(GetBytePtr(&block_stream) - GetBytePtr(stream)) -
       HZR_BLOCK_HEADER_SIZE;
-  if (UNLIKELY(stream->write_failed ||
+  if (UNLIKELY(block_stream.write_failed ||
                (encoded_size_wo_hdr >= HZR_MAX_BLOCK_SIZE))) {
-    *stream = original_stream;
     return PlainCopy(in, in_size, stream, encoded_size);
   }
 
@@ -442,13 +453,16 @@ static hzr_status_t EncodeSingleBlock(WriteStream* stream,
   *encoded_size = encoded_size_wo_hdr + HZR_BLOCK_HEADER_SIZE;
 
   // Calculate the CRC for the compressed buffer.
-  uint8_t* encoded_start = GetBytePtr(&original_stream) + HZR_BLOCK_HEADER_SIZE;
+  uint8_t* encoded_start = GetBytePtr(stream) + HZR_BLOCK_HEADER_SIZE;
   uint32_t crc32 = _hzr_crc32(encoded_start, encoded_size_wo_hdr);
 
   // Write the block header.
-  WriteBits(&original_stream, (uint32_t)(encoded_size_wo_hdr - 1), 16);
-  WriteBits(&original_stream, crc32, 32);
-  WriteBits(&original_stream, HZR_ENCODING_HUFF_RLE, 8);
+  WriteBits(stream, (uint32_t)(encoded_size_wo_hdr - 1), 16);
+  WriteBits(stream, crc32, 32);
+  WriteBits(stream, HZR_ENCODING_HUFF_RLE, 8);
+
+  // Commit the stream state.
+  CopyWriteState(stream, &block_stream);
 
   return HZR_OK;
 }
