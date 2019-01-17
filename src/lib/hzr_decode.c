@@ -59,7 +59,7 @@ static void ReInitBitCache(ReadStream* stream) {
   }
 
   stream->bit_cache = 0U;
-  size_t bytes_left = stream->end_ptr - stream->byte_ptr;
+  size_t bytes_left = (size_t)(stream->end_ptr - stream->byte_ptr);
   size_t bytes_to_read = hzr_min(4, bytes_left);
   for (size_t i = 0; i < bytes_to_read; ++i) {
     stream->bit_cache |= ((uint32_t)stream->byte_ptr[i]) << (8 * i);

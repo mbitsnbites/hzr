@@ -44,7 +44,7 @@ static void cpuid(unsigned func,
                   unsigned* c,
                   unsigned* d) {
 #if defined(__GNUC__) || defined(__clang__)
-  __get_cpuid(func, a, b, c, d);
+  __cpuid(func, *a, *b, *c, *d);
 #elif defined(_MSC_VER)
   int info[4];
   __cpuid(info, (int)func);
