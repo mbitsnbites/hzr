@@ -25,6 +25,14 @@ cmake_minimum_required(VERSION 3.0)
 
 project(hzr C)
 
+# Enable sanitizers.
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR
+   "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+  set(SANITIZERS "-fsanitize=address -fsanitize=undefined")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${SANITIZERS}")
+  set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} ${SANITIZERS}")
+endif()
+
 # Library.
 add_subdirectory(src)
 
