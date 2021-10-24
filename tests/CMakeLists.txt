@@ -25,7 +25,6 @@ cmake_minimum_required(VERSION 3.10)
 
 enable_language(CXX)
 
-add_subdirectory(third-party/catch)
 add_subdirectory(third-party/doctest)
 
 list(APPEND HZR_TEST_LIBRARIES doctest)
