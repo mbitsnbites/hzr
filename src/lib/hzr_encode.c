@@ -92,6 +92,9 @@ static void ForceFlushBitCache(WriteStream* stream) {
 // Write bits to a bitstream.
 // NOTE: All unused bits of the input argument x must be zero.
 FORCE_INLINE static void WriteBits(WriteStream* stream, uint32_t x, int bits) {
+  ASSERT(bits <= 32);
+  ASSERT(stream->bit_pos < 32);
+
   int bits_to_write = hzr_min(32 - stream->bit_pos, bits);
   stream->bit_cache |= (x << stream->bit_pos);
   stream->bit_pos += bits_to_write;
@@ -101,7 +104,7 @@ FORCE_INLINE static void WriteBits(WriteStream* stream, uint32_t x, int bits) {
   // In the very unlikely case that we didn't write all the bits in the first
   // pass, we have to do a second pass (the caller has to write *at least*
   // 24 bits at once for this to ever happen).
-  if (UNLIKELY(bits > 0)) {
+  if (UNLIKELY(bits > 0 && !stream->write_failed)) {
     x >>= bits_to_write;
     stream->bit_cache |= (x << stream->bit_pos);
     stream->bit_pos += bits;
@@ -180,7 +183,13 @@ static void StoreTree(EncodeNode* node,
   if (node->symbol >= 0) {
     // Append symbol to tree description.
     WriteBits(stream, 1, 1);
+    if (UNLIKELY(stream->write_failed)) {
+      return;
+    }
     WriteBits(stream, (uint32_t)node->symbol, kSymbolSize);
+    if (UNLIKELY(stream->write_failed)) {
+      return;
+    }
 
     // Find symbol index.
     int sym_idx;
@@ -198,6 +207,9 @@ static void StoreTree(EncodeNode* node,
 
   // This was not a leaf node.
   WriteBits(stream, 0, 1);
+  if (UNLIKELY(stream->write_failed)) {
+    return;
+  }
 
   // Branch A.
   StoreTree(node->child_a, symbols, stream, code, bits + 1);
@@ -358,6 +370,8 @@ static hzr_status_t EncodeSingleBlock(WriteStream* stream,
                                       const uint8_t* in,
                                       size_t in_size,
                                       size_t* encoded_size) {
+  ASSERT((stream->bit_pos & 7) == 0);
+
   // Create a stream that is limited to this block (this is required to detect
   // block buffer overruns).
   WriteStream block_stream = *stream;
@@ -368,6 +382,11 @@ static hzr_status_t EncodeSingleBlock(WriteStream* stream,
   }
 
   // Zero out the block header (will be filled out later).
+  if (UNLIKELY((GetBytePtr(&block_stream) + HZR_BLOCK_HEADER_SIZE) >
+               block_stream.end_ptr)) {
+    DLOG("Block buffer is too small for holding the block header.");
+    return HZR_FAIL;
+  }
   WriteBits(&block_stream, 0U, 16);
   WriteBits(&block_stream, 0U, 32);
   WriteBits(&block_stream, 0U, 8);
@@ -488,7 +507,7 @@ hzr_status_t hzr_encode(const void* in,
     return HZR_FAIL;
   }
 
-  // Check that there is enought space in the output buffer for the header.
+  // Check that there is enough space in the output buffer for the header.
   if (UNLIKELY(out_size < HZR_HEADER_SIZE)) {
     DLOG("The output buffer is too small.");
     return HZR_FAIL;
