@@ -34,7 +34,7 @@ if(HZR_ENABLE_SANITIZERS)
   if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR
      "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
     message("HZR: Using sanitizers")
-    set(SANITIZERS "-fsanitize=address -fsanitize=undefined")
+    set(SANITIZERS "-fsanitize=address -fsanitize=undefined -fsanitize=leak")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZERS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZERS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZERS}")
