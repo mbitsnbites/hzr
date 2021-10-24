@@ -21,7 +21,7 @@
 #  3. This notice may not be removed or altered from any source distribution.
 #-------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
 # Enable warnings, and treat them as errors.
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
