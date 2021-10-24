@@ -123,16 +123,14 @@ FORCE_INLINE static int ReadBitChecked(ReadStream* stream) {
 }
 
 static const uint32_t s_bits_mask[33] = {
-  0, // Index zero is never used, since the index is in the range [1,32].
-  0x00000001U, 0x00000003U, 0x00000007U, 0x0000000fU,
-  0x0000001fU, 0x0000003fU, 0x0000007fU, 0x000000ffU,
-  0x000001ffU, 0x000003ffU, 0x000007ffU, 0x00000fffU,
-  0x00001fffU, 0x00003fffU, 0x00007fffU, 0x0000ffffU,
-  0x0001ffffU, 0x0003ffffU, 0x0007ffffU, 0x000fffffU,
-  0x001fffffU, 0x003fffffU, 0x007fffffU, 0x00ffffffU,
-  0x01ffffffU, 0x03ffffffU, 0x07ffffffU, 0x0fffffffU,
-  0x1fffffffU, 0x3fffffffU, 0x7fffffffU, 0xffffffffU
-};
+    0,  // Index zero is never used, since the index is in the range [1,32].
+    0x00000001U, 0x00000003U, 0x00000007U, 0x0000000fU, 0x0000001fU,
+    0x0000003fU, 0x0000007fU, 0x000000ffU, 0x000001ffU, 0x000003ffU,
+    0x000007ffU, 0x00000fffU, 0x00001fffU, 0x00003fffU, 0x00007fffU,
+    0x0000ffffU, 0x0001ffffU, 0x0003ffffU, 0x0007ffffU, 0x000fffffU,
+    0x001fffffU, 0x003fffffU, 0x007fffffU, 0x00ffffffU, 0x01ffffffU,
+    0x03ffffffU, 0x07ffffffU, 0x0fffffffU, 0x1fffffffU, 0x3fffffffU,
+    0x7fffffffU, 0xffffffffU};
 
 // Read multiple bits from a bitstream.
 FORCE_INLINE static uint32_t ReadBits(ReadStream* stream, int bits) {

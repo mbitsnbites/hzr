@@ -61,8 +61,9 @@ void perform_test(size_t uncompressed_size) {
                      max_compressed_size, &compressed_size));
   std::cout << "  Compression ratio: "
             << (static_cast<double>(uncompressed_size) /
-                static_cast<double>(compressed_size)) << ":1 ("
-            << uncompressed_size << ":" << compressed_size << ")" << std::endl;
+                static_cast<double>(compressed_size))
+            << ":1 (" << uncompressed_size << ":" << compressed_size << ")"
+            << std::endl;
 
   // Decompress the data.
   size_t uncompressed_size2;

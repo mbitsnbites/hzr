@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 class random_t {
- public:
+public:
   random_t(const uint32_t seed);
 
   // Obtain an 8-bit random number.
@@ -35,7 +35,7 @@ class random_t {
   // Obtain an 8-bit normally distributed random number.
   uint8_t gaussian(uint8_t std_dev);
 
- private:
+private:
   void twist();
   double gaussian(const double mean, const double stdDev);
   uint32_t get_u32();
@@ -47,4 +47,3 @@ class random_t {
 };
 
 #endif // RANDOM_H_
-

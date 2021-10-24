@@ -44,10 +44,8 @@ namespace {
 
 const size_t MAX_UNCOMPRESSED_SIZE = 131072;
 
-const size_t SIZES[] = {MAX_UNCOMPRESSED_SIZE,
-                        MAX_UNCOMPRESSED_SIZE / 4,
-                        MAX_UNCOMPRESSED_SIZE / 8,
-                        MAX_UNCOMPRESSED_SIZE / 32};
+const size_t SIZES[] = {MAX_UNCOMPRESSED_SIZE, MAX_UNCOMPRESSED_SIZE / 4,
+                        MAX_UNCOMPRESSED_SIZE / 8, MAX_UNCOMPRESSED_SIZE / 32};
 const size_t NUM_SIZES = sizeof(SIZES) / sizeof(SIZES[0]);
 
 // This is an approximation (rounded up) of the maximum compressed size.

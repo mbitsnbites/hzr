@@ -31,4 +31,4 @@
 hzr_bool _hzr_can_use_sse4_2(void);
 uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size);
 
-#endif // HZR_CRC32C_SSE4_H_
+#endif  // HZR_CRC32C_SSE4_H_

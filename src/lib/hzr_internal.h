@@ -61,9 +61,11 @@
 #endif
 #define _STRINGIFY(x) #x
 #define _TOSTRING(x) _STRINGIFY(x)
-#define ASSERT(x) if (UNLIKELY(!(x))) { \
-  printf(__FILE__ ":%d: Assertion failed: " _TOSTRING(x) "\n", __LINE__); \
-  break_into_debugger(); }
+#define ASSERT(x)                                                           \
+  if (UNLIKELY(!(x))) {                                                     \
+    printf(__FILE__ ":%d: Assertion failed: " _TOSTRING(x) "\n", __LINE__); \
+    break_into_debugger();                                                  \
+  }
 #else
 #define DLOG(s)
 #define DLOGF(s, ...)
@@ -96,10 +98,10 @@ typedef enum { HZR_FALSE = 0, HZR_TRUE = 1 } hzr_bool;
 // Size of the block header (in bytes).
 #define HZR_BLOCK_HEADER_SIZE 7
 
-#define HZR_ENCODING_COPY     0
+#define HZR_ENCODING_COPY 0
 #define HZR_ENCODING_HUFF_RLE 1
-#define HZR_ENCODING_FILL     2
-#define HZR_ENCODING_LAST     HZR_ENCODING_FILL
+#define HZR_ENCODING_FILL 2
+#define HZR_ENCODING_LAST HZR_ENCODING_FILL
 
 // Maximum number of decoded bytes in a block.
 #define HZR_MAX_BLOCK_SIZE 65536

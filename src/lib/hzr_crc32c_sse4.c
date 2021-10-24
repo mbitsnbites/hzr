@@ -117,4 +117,4 @@ uint32_t _hzr_crc32c_sse4_2(const uint8_t* buf, size_t size) {
   return 0;
 }
 
-#endif // SSE 4.2
+#endif  // SSE 4.2

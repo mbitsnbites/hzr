@@ -32,7 +32,7 @@
 
 #ifndef HWCAP_CRC32
 #define HWCAP_CRC32 (1U << 7)
-#endif // HWCAP_CRC32
+#endif  // HWCAP_CRC32
 
 // Check if we can use CRC32 extensions, at runtime.
 hzr_bool _hzr_can_use_armv8crc(void) {
@@ -47,7 +47,7 @@ hzr_bool _hzr_can_use_armv8crc(void) {
   return HZR_TRUE;
 }
 
-#endif // __linux__
+#endif  // __linux__
 
 // ARMv8 + CRC32 optimized CRC32 implementation.
 uint32_t _hzr_crc32c_armv8crc(const uint8_t* buf, size_t size) {
@@ -91,4 +91,4 @@ uint32_t _hzr_crc32c_armv8crc(const uint8_t* buf, size_t size) {
   return 0;
 }
 
-#endif // __ARM_FEATURE_CRC32
+#endif  // __ARM_FEATURE_CRC32
