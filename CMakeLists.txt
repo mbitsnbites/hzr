@@ -21,21 +21,31 @@
 #  3. This notice may not be removed or altered from any source distribution.
 #-------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
 project(hzr C)
 
+# Build options.
+option(HZR_ENABLE_TESTS      "Enable unit tests"                on)
+option(HZR_ENABLE_SANITIZERS "Enable sanitizer instrumentation" off)
+
 # Enable sanitizers.
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR
-   "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
-  set(SANITIZERS "-fsanitize=address -fsanitize=undefined")
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${SANITIZERS}")
-  set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} ${SANITIZERS}")
+if(HZR_ENABLE_SANITIZERS)
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR
+     "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+    message("HZR: Using sanitizers")
+    set(SANITIZERS "-fsanitize=address -fsanitize=undefined")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZERS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZERS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZERS}")
+  endif()
 endif()
 
 # Library.
 add_subdirectory(src)
 
 # Unit tests.
-enable_testing()
-add_subdirectory(tests)
+if(HZR_ENABLE_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
