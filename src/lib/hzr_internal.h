@@ -44,15 +44,30 @@
 #define FORCE_INLINE
 #endif
 
-// Debug macros.
+// Macros that are only enabled in debug mode.
 #if !defined(NDEBUG)
 #include <stdio.h>
+
+// Logging macros.
 #define DLOG(s) printf("%s:%d: %s\n", __FILE__, __LINE__, (s))
 #define DLOGF(s, ...) \
   printf("%s:%d: " s "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+
+// Assert macros.
+#ifdef _MSC_VER
+#define break_into_debugger __debugbreak
+#else
+#define break_into_debugger __builtin_trap
+#endif
+#define _STRINGIFY(x) #x
+#define _TOSTRING(x) _STRINGIFY(x)
+#define ASSERT(x) if (UNLIKELY(!(x))) { \
+  printf(__FILE__ ":%d: Assertion failed: " _TOSTRING(x) "\n", __LINE__); \
+  break_into_debugger(); }
 #else
 #define DLOG(s)
 #define DLOGF(s, ...)
+#define ASSERT(x)
 #endif
 
 // Min/max macros.
