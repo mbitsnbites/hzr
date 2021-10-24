@@ -59,13 +59,15 @@
 #else
 #define break_into_debugger __builtin_trap
 #endif
-#define _STRINGIFY(x) #x
-#define _TOSTRING(x) _STRINGIFY(x)
-#define ASSERT(x)                                                           \
-  if (UNLIKELY(!(x))) {                                                     \
-    printf(__FILE__ ":%d: Assertion failed: " _TOSTRING(x) "\n", __LINE__); \
-    break_into_debugger();                                                  \
-  }
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define ASSERT(x)                                                            \
+  do {                                                                       \
+    if (UNLIKELY(!(x))) {                                                    \
+      printf(__FILE__ ":%d: Assertion failed: " TOSTRING(x) "\n", __LINE__); \
+      break_into_debugger();                                                 \
+    }                                                                        \
+  } while (0)
 #else
 #define DLOG(s)
 #define DLOGF(s, ...)
