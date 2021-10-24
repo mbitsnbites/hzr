@@ -20,7 +20,7 @@
 //  3. This notice may not be removed or altered from any source distribution.
 //------------------------------------------------------------------------------
 
-#include <catch.hpp>
+#include <doctest.h>
 
 #include <algorithm>
 #include <iostream>
@@ -78,7 +78,7 @@ void perform_test(size_t uncompressed_size) {
 
 }  // namespace
 
-TEST_CASE("Test 1 (good case)", "[compression]") {
+TEST_CASE("Test 1 (good case)") {
   std::cout << "Test 1 (good case)" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -87,7 +87,7 @@ TEST_CASE("Test 1 (good case)", "[compression]") {
   }
 }
 
-TEST_CASE("Test 2 (bad case)", "[compression]") {
+TEST_CASE("Test 2 (bad case)") {
   std::cout << "Test 2 (bad case)" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -98,7 +98,7 @@ TEST_CASE("Test 2 (bad case)", "[compression]") {
   }
 }
 
-TEST_CASE("Test 3", "[compression]") {
+TEST_CASE("Test 3") {
   std::cout << "Test 3" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -111,7 +111,7 @@ TEST_CASE("Test 3", "[compression]") {
   }
 }
 
-TEST_CASE("Test 4", "[compression]") {
+TEST_CASE("Test 4") {
   std::cout << "Test 4" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -122,7 +122,7 @@ TEST_CASE("Test 4", "[compression]") {
   }
 }
 
-TEST_CASE("Test 5", "[compression]") {
+TEST_CASE("Test 5") {
   std::cout << "Test 5" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];

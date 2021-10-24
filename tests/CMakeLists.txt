@@ -28,7 +28,7 @@ enable_language(CXX)
 add_subdirectory(third-party/catch)
 add_subdirectory(third-party/doctest)
 
-list(APPEND HZR_TEST_LIBRARIES catch)
+list(APPEND HZR_TEST_LIBRARIES doctest)
 list(APPEND HZR_TEST_LIBRARIES hzr)
 
 if (UNIX AND NOT APPLE)
@@ -46,13 +46,11 @@ if(ZLIB_FOUND)
 endif()
 
 add_executable(compression_tests
-               test_main.cpp
                compression_tests.cpp)
 target_link_libraries(compression_tests ${HZR_TEST_LIBRARIES})
 add_test(NAME "Compression_tests" COMMAND compression_tests)
 
 add_executable(performance_tests
-               test_main.cpp
                performance_tests.cpp
                random.cpp)
 target_link_libraries(performance_tests ${HZR_TEST_LIBRARIES})

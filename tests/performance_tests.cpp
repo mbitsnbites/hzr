@@ -20,7 +20,7 @@
 //  3. This notice may not be removed or altered from any source distribution.
 //------------------------------------------------------------------------------
 
-#include <catch.hpp>
+#include <doctest.h>
 
 #include <cstring>
 #include <iostream>
@@ -194,7 +194,7 @@ void perform_test(size_t uncompressed_size) {
 
 }  // namespace
 
-TEST_CASE("Test 1 (all zeros)", "[performance]") {
+TEST_CASE("Test 1 (all zeros)") {
   std::cout << "Test 1 (all zeros)" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -203,7 +203,7 @@ TEST_CASE("Test 1 (all zeros)", "[performance]") {
   }
 }
 
-TEST_CASE("Test 2 (random)", "[performance]") {
+TEST_CASE("Test 2 (random)") {
   std::cout << "Test 2 (random)" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -215,7 +215,7 @@ TEST_CASE("Test 2 (random)", "[performance]") {
   }
 }
 
-TEST_CASE("Test 3 (gaussian(8) + zeros)", "[performance]") {
+TEST_CASE("Test 3 (gaussian(8) + zeros)") {
   std::cout << "Test 3 (gaussian(8) + zeros)" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -228,7 +228,7 @@ TEST_CASE("Test 3 (gaussian(8) + zeros)", "[performance]") {
   }
 }
 
-TEST_CASE("Test 4 (gaussian(2))", "[performance]") {
+TEST_CASE("Test 4 (gaussian(2))") {
   std::cout << "Test 4 (gaussian(2))" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
@@ -240,7 +240,7 @@ TEST_CASE("Test 4 (gaussian(2))", "[performance]") {
   }
 }
 
-TEST_CASE("Test 5 (all ones)", "[performance]") {
+TEST_CASE("Test 5 (all ones)") {
   std::cout << "Test 5 (all ones)" << std::endl;
   for (size_t k = 0; k < NUM_SIZES; ++k) {
     const size_t uncompressed_size = SIZES[k];
