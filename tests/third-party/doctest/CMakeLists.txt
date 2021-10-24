@@ -2,7 +2,7 @@
 #-------------------------------------------------------------------------------
 #  hzr - A Huffman + RLE compression library.
 #
-# Copyright (C) 2016 Marcus Geelnard
+# Copyright (C) 2021 Marcus Geelnard
 #
 # This software is provided 'as-is', without any express or implied warranty.
 # In no event will the authors be held liable for any damages arising from the
@@ -23,37 +23,5 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-enable_language(CXX)
-
-add_subdirectory(third-party/catch)
-add_subdirectory(third-party/doctest)
-
-list(APPEND HZR_TEST_LIBRARIES catch)
-list(APPEND HZR_TEST_LIBRARIES hzr)
-
-if (UNIX AND NOT APPLE)
-  find_library(MATH_LIBRARY m)
-  if(MATH_LIBRARY)
-    list(APPEND HZR_TEST_LIBRARIES ${MATH_LIBRARY})
-  endif()
-endif()
-
-find_package(ZLIB)
-if(ZLIB_FOUND)
-  include_directories(${ZLIB_INCLUDE_DIRS})
-  add_definitions(-DHZR_HAS_ZLIB)
-  list(APPEND HZR_TEST_LIBRARIES ${ZLIB_LIBRARIES})
-endif()
-
-add_executable(compression_tests
-               test_main.cpp
-               compression_tests.cpp)
-target_link_libraries(compression_tests ${HZR_TEST_LIBRARIES})
-add_test(NAME "Compression_tests" COMMAND compression_tests)
-
-add_executable(performance_tests
-               test_main.cpp
-               performance_tests.cpp
-               random.cpp)
-target_link_libraries(performance_tests ${HZR_TEST_LIBRARIES})
-add_test(NAME "Performance_tests" COMMAND performance_tests)
+add_library(doctest doctest_main.cpp)
+target_include_directories(doctest PUBLIC include)
