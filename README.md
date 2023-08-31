@@ -1,3 +1,5 @@
+## ⚠️ This repository has moved to: https://gitlab.com/mbitsnbites/hzr
+
 # hzr
 
 This is a fast Huffman+RLE compression library. Its main features are:
